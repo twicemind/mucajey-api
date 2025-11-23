@@ -1,0 +1,1717 @@
+const express = require('express');
+const fs = require('fs').promises;
+const path = require('path');
+const crypto = require('crypto');
+const axios = require('axios');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const DATA_DIR = path.join('/app/data/cards');
+const IMPORT_FILE = path.join(DATA_DIR, 'hitster-de-import.json');
+// API Keys in persistentem Verzeichnis (wird via Docker Volume gemountet)
+const API_KEYS_DIR = path.join('/app/data/api');
+const API_KEYS_FILE = path.join(API_KEYS_DIR, 'api-keys.json');
+
+// Master API Key aus Umgebungsvariable oder Standard-Key
+const MASTER_API_KEY = process.env.API_KEY || 'mucajey-dev-key-2024';
+
+// Spotify API Credentials
+const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID || '';
+const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET || '';
+let spotifyAccessToken = null;
+let spotifyTokenExpiry = 0;
+
+// API Keys Store (wird beim Start geladen)
+let apiKeysStore = {
+  keys: []
+};
+
+// Middleware
+app.use(express.json());
+
+// CORS aktivieren
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  next();
+});
+
+// Hilfsfunktion: API Keys Datei laden
+async function loadApiKeys() {
+  try {
+    // Stelle sicher dass Verzeichnis existiert
+    await fs.mkdir(API_KEYS_DIR, { recursive: true });
+    
+    const data = await fs.readFile(API_KEYS_FILE, 'utf-8');
+    apiKeysStore = JSON.parse(data);
+  } catch (error) {
+    // Datei existiert nicht, initialisiere mit leerem Store
+    apiKeysStore = { keys: [] };
+    await saveApiKeys();
+  }
+}
+
+// Hilfsfunktion: API Keys Datei speichern
+async function saveApiKeys() {
+  await fs.writeFile(API_KEYS_FILE, JSON.stringify(apiKeysStore, null, 2), 'utf-8');
+}
+
+// Hilfsfunktion: Generiere sicheren API-Key
+function generateSecureApiKey() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// Hilfsfunktion: Prüfe ob API-Key gültig ist
+function isValidApiKey(apiKey) {
+  // Master-Key ist immer gültig
+  if (apiKey === MASTER_API_KEY) {
+    return true;
+  }
+  // Prüfe ob Key in der Datenbank existiert und aktiv ist
+  const keyEntry = apiKeysStore.keys.find(k => k.key === apiKey);
+  return keyEntry && keyEntry.active;
+}
+
+// API Key Authentication Middleware
+function authenticateApiKey(req, res, next) {
+  const apiKey = req.headers['x-api-key'];
+  
+  if (!apiKey) {
+    return res.status(401).json({ 
+      error: 'API-Key erforderlich',
+      message: 'Bitte fügen Sie den X-API-Key Header hinzu'
+    });
+  }
+  
+  if (!isValidApiKey(apiKey)) {
+    return res.status(403).json({ 
+      error: 'Ungültiger API-Key',
+      message: 'Der bereitgestellte API-Key ist ungültig'
+    });
+  }
+  
+  next();
+}
+
+// Hilfsfunktion: JSON-Datei laden
+async function loadJsonFile(filename) {
+  const filePath = path.join(DATA_DIR, filename);
+  const data = await fs.readFile(filePath, 'utf-8');
+  return JSON.parse(data);
+}
+
+// Hilfsfunktion: Import-Datei initialisieren falls nicht vorhanden
+async function ensureImportFile() {
+  try {
+    await fs.access(IMPORT_FILE);
+  } catch (error) {
+    // Datei existiert nicht, erstelle sie
+    const initialData = {
+      edition: "Hitster Deutschland - Import",
+      language_short: "de",
+      language_long: "Deutsch",
+      identifier: "import",
+      imports: []
+    };
+    await fs.writeFile(IMPORT_FILE, JSON.stringify(initialData, null, 2), 'utf-8');
+  }
+}
+
+// Hilfsfunktion: Generiere eindeutige Import-ID
+function generateImportId() {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 8);
+  return `IMP-${timestamp}-${random}`;
+}
+
+// Hilfsfunktion: Import-Datei laden
+async function loadImportFile() {
+  await ensureImportFile();
+  const data = await fs.readFile(IMPORT_FILE, 'utf-8');
+  return JSON.parse(data);
+}
+
+// Hilfsfunktion: Import-Datei speichern
+async function saveImportFile(data) {
+  await fs.writeFile(IMPORT_FILE, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+// Hilfsfunktion: Validierung der Kartendaten
+function validateCard(card) {
+  const errors = [];
+  
+  if (!card.id || typeof card.id !== 'string') {
+    errors.push('ID ist erforderlich und muss ein String sein');
+  }
+  if (!card.title || typeof card.title !== 'string') {
+    errors.push('Titel ist erforderlich und muss ein String sein');
+  }
+  if (!card.artist || typeof card.artist !== 'string') {
+    errors.push('Künstler ist erforderlich und muss ein String sein');
+  }
+  if (!card.year || typeof card.year !== 'string') {
+    errors.push('Jahr ist erforderlich und muss ein String sein');
+  }
+  if (!card.edition || typeof card.edition !== 'string') {
+    errors.push('Edition ist erforderlich und muss ein String sein');
+  }
+  if (!card.language_short || typeof card.language_short !== 'string') {
+    errors.push('language_short ist erforderlich und muss ein String sein');
+  }
+  if (!card.language_long || typeof card.language_long !== 'string') {
+    errors.push('language_long ist erforderlich und muss ein String sein');
+  }
+  
+  return errors;
+}
+
+// ============================================================================
+// Spotify API Helpers
+// ============================================================================
+
+/**
+ * Holt einen Spotify Access Token via Client Credentials Flow
+ */
+async function getSpotifyAccessToken() {
+  // Prüfe ob Token noch gültig ist
+  if (spotifyAccessToken && Date.now() < spotifyTokenExpiry) {
+    return spotifyAccessToken;
+  }
+
+  if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET) {
+    throw new Error('Spotify API Credentials nicht konfiguriert (SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)');
+  }
+
+  try {
+    const authString = Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString('base64');
+    
+    const response = await axios.post('https://accounts.spotify.com/api/token', 
+      'grant_type=client_credentials',
+      {
+        headers: {
+          'Authorization': `Basic ${authString}`,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
+    );
+
+    spotifyAccessToken = response.data.access_token;
+    // Token läuft nach 1 Stunde ab, wir setzen Expiry auf 55 Minuten für Sicherheit
+    spotifyTokenExpiry = Date.now() + (55 * 60 * 1000);
+    
+    return spotifyAccessToken;
+  } catch (error) {
+    console.error('Fehler beim Abrufen des Spotify Access Tokens:', error.response?.data || error.message);
+    throw new Error('Spotify Authentifizierung fehlgeschlagen');
+  }
+}
+
+/**
+ * Extrahiert Playlist ID aus Spotify URL
+ * Unterstützt: https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M
+ */
+function extractPlaylistId(playlistUrl) {
+  if (!playlistUrl) return null;
+  
+  const match = playlistUrl.match(/playlist\/([a-zA-Z0-9]+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Lädt alle Tracks einer Spotify Playlist
+ */
+async function getSpotifyPlaylistTracks(playlistId) {
+  const token = await getSpotifyAccessToken();
+  const allTracks = [];
+  let nextUrl = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100`;
+
+  try {
+    while (nextUrl) {
+      const response = await axios.get(nextUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const items = response.data.items || [];
+      
+      for (const item of items) {
+        if (item.track && item.track.id) {
+          allTracks.push({
+            id: item.track.id,
+            uri: item.track.uri,
+            url: item.track.external_urls?.spotify || '',
+            name: item.track.name,
+            artists: item.track.artists?.map(a => a.name).join(', ') || '',
+            album: item.track.album?.name || '',
+            releaseDate: item.track.album?.release_date || ''
+          });
+        }
+      }
+
+      nextUrl = response.data.next;
+    }
+
+    return allTracks;
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Playlist Tracks:', error.response?.data || error.message);
+    throw new Error(`Fehler beim Abrufen der Spotify Playlist: ${error.message}`);
+  }
+}
+
+// ============================================================================
+// Apple Music / iTunes Search API Helpers
+// ============================================================================
+
+/**
+ * Sucht einen Track in der iTunes Search API
+ * @param {string} title - Song-Titel
+ * @param {string} artist - Künstler-Name
+ * @param {string} country - Land (z.B. 'de', 'us')
+ * @returns {Object|null} - Track-Daten oder null
+ */
+async function searchItunesTrack(title, artist, country = 'de') {
+  try {
+    // Baue Suchquery: artist + title für bessere Ergebnisse
+    const searchTerm = `${artist} ${title}`.trim();
+    
+    const response = await axios.get('https://itunes.apple.com/search', {
+      params: {
+        term: searchTerm,
+        media: 'music',
+        entity: 'song',
+        country: country,
+        limit: 5 // Top 5 Ergebnisse für besseres Matching
+      }
+    });
+
+    if (!response.data.results || response.data.results.length === 0) {
+      return null;
+    }
+
+    // Normalisiere Strings für Matching
+    const normalizeString = (str) => {
+      if (!str) return '';
+      return str
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Entferne Akzente
+        .replace(/\s*\(?\s*(feat\.|ft\.|featuring)\s+[^)]*\)?/gi, '') // Entferne feat.
+        .replace(/p!nk/gi, 'pink')
+        .replace(/[^\w\s]/g, ' ') // Sonderzeichen
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+    };
+
+    // Extrahiere Text in Klammern falls vorhanden (für Soundtracks)
+    let titleForMatching = title;
+    const parenthesesMatch = title.match(/\(([^)]+)\)/);
+    if (parenthesesMatch) {
+      titleForMatching = parenthesesMatch[1];
+    }
+
+    const normalizedSearchTitle = normalizeString(titleForMatching);
+    const normalizedSearchArtist = normalizeString(artist.split(/[&,]/)[0]); // Hauptkünstler
+
+    // Finde besten Match
+    let bestMatch = null;
+    let bestScore = 0;
+
+    for (const track of response.data.results) {
+      const normalizedTrackTitle = normalizeString(track.trackName || '');
+      const normalizedTrackArtist = normalizeString(track.artistName || '');
+
+      // Exaktes Matching bevorzugen
+      const titleMatch = normalizedTrackTitle.includes(normalizedSearchTitle) || 
+                        normalizedSearchTitle.includes(normalizedTrackTitle);
+      const artistMatch = normalizedTrackArtist.includes(normalizedSearchArtist) ||
+                         normalizedSearchArtist.includes(normalizedTrackArtist);
+
+      if (titleMatch && artistMatch) {
+        return {
+          id: String(track.trackId),
+          uri: track.trackViewUrl,
+          name: track.trackName,
+          artist: track.artistName,
+          album: track.collectionName,
+          previewUrl: track.previewUrl
+        };
+      }
+
+      // Berechne Score für Fuzzy Matching
+      const titleSimilarity = calculateSimilarity(normalizedTrackTitle, normalizedSearchTitle);
+      const artistSimilarity = calculateSimilarity(normalizedTrackArtist, normalizedSearchArtist);
+      const score = (titleSimilarity * 0.6) + (artistSimilarity * 0.4);
+
+      if (score > bestScore && score >= 70) {
+        bestScore = score;
+        bestMatch = {
+          id: String(track.trackId),
+          uri: track.trackViewUrl,
+          name: track.trackName,
+          artist: track.artistName,
+          album: track.collectionName,
+          previewUrl: track.previewUrl
+        };
+      }
+    }
+
+    return bestMatch;
+  } catch (error) {
+    if (error.response) {
+      console.error('iTunes Search API Fehler:', error.response.status, error.response.statusText);
+      console.error('  Searched:', `${artist} - ${title}`);
+    } else {
+      console.error('iTunes Search API Fehler:', error.message);
+    }
+    return null;
+  }
+}
+
+/**
+ * Hilfsfunktion: Berechnet Levenshtein-Ähnlichkeit
+ */
+function calculateSimilarity(str1, str2) {
+  const longer = str1.length > str2.length ? str1 : str2;
+  const shorter = str1.length > str2.length ? str2 : str1;
+  
+  if (longer.length === 0) return 100;
+  
+  const editDistance = levenshteinDistance(longer, shorter);
+  return ((longer.length - editDistance) / longer.length) * 100;
+}
+
+/**
+ * Hilfsfunktion: Berechnet Levenshtein-Distanz
+ */
+function levenshteinDistance(str1, str2) {
+  const matrix = [];
+
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i];
+  }
+
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+
+  return matrix[str2.length][str1.length];
+}
+
+// ============================================================================
+// API Routes
+// ============================================================================
+
+// Route: Alle verfügbaren Dateien auflisten
+app.get('/api/files', authenticateApiKey, async (req, res) => {
+  try {
+    const files = await fs.readdir(DATA_DIR);
+    const jsonFiles = files.filter(file => file.endsWith('.json'));
+    res.json({ files: jsonFiles });
+  } catch (error) {
+    res.status(500).json({ error: 'Fehler beim Laden der Dateien', details: error.message });
+  }
+});
+
+// Route: Alle Daten aus allen JSON-Dateien zusammenführen
+app.get('/api/all-data', authenticateApiKey, async (req, res) => {
+  try {
+    const files = await fs.readdir(DATA_DIR);
+    const jsonFiles = files.filter(file => 
+      file.endsWith('.json') && 
+      file.startsWith('hitster-de') &&
+      !file.includes('import')
+    );
+    
+    let allCards = [];
+    let editions = [];
+    
+    // Lade alle Dateien und sammle Karten
+    for (const file of jsonFiles) {
+      try {
+        const data = await loadJsonFile(file);
+        
+        // Sammle Edition-Info
+        if (data.edition && !editions.some(e => e.edition === data.edition)) {
+          editions.push({
+            edition: data.edition,
+            language_short: data.language_short || 'de',
+            language_long: data.language_long || 'Deutsch',
+            identifier: data.identifier || '',
+            file: file,
+            cardCount: data.cards ? data.cards.length : 0
+          });
+        }
+        
+        // Sammle ALLE Karten aus ALLEN Editionen (keine Duplikat-Prüfung!)
+        if (data.cards && Array.isArray(data.cards)) {
+          for (const card of data.cards) {
+            allCards.push({
+              ...card,
+              edition: data.edition || 'Unknown',
+              language_short: data.language_short || 'de',
+              language_long: data.language_long || 'Deutsch',
+              source_file: file
+            });
+          }
+        }
+      } catch (fileError) {
+        console.error(`Fehler beim Laden von ${file}:`, fileError.message);
+        // Weiter mit nächster Datei
+      }
+    }
+    
+    res.json({
+      summary: {
+        totalCards: allCards.length,
+        totalEditions: editions.length,
+        totalFiles: jsonFiles.length
+      },
+      editions: editions,
+      cards: allCards
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Fehler beim Laden aller Daten', 
+      details: error.message 
+    });
+  }
+});
+
+// Route: Alle Daten aus hitster-de.json
+app.get('/api/hitster-de', authenticateApiKey, async (req, res) => {
+  try {
+    const data = await loadJsonFile('hitster-de.json');
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: 'Fehler beim Laden der Daten', details: error.message });
+  }
+});
+
+// Route: Spezifische Datei laden
+app.get('/api/data/:filename', authenticateApiKey, async (req, res) => {
+  try {
+    const filename = req.params.filename;
+    
+    // Sicherheitscheck: Nur .json Dateien
+    if (!filename.endsWith('.json')) {
+      return res.status(400).json({ error: 'Nur JSON-Dateien erlaubt' });
+    }
+    
+    const data = await loadJsonFile(filename);
+    res.json(data);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      res.status(404).json({ error: 'Datei nicht gefunden' });
+    } else {
+      res.status(500).json({ error: 'Fehler beim Laden der Datei', details: error.message });
+    }
+  }
+});
+
+// Route: Karten nach Jahr filtern
+app.get('/api/cards/year/:year', authenticateApiKey, async (req, res) => {
+  try {
+    const year = req.params.year;
+    const data = await loadJsonFile('hitster-de.json');
+    
+    const filteredCards = data.cards.filter(card => card.year === year);
+    res.json({
+      edition: data.edition,
+      year: year,
+      count: filteredCards.length,
+      cards: filteredCards
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Fehler beim Filtern der Daten', details: error.message });
+  }
+});
+
+// Route: Karte nach ID suchen
+app.get('/api/cards/:id', authenticateApiKey, async (req, res) => {
+  try {
+    const cardId = req.params.id;
+    const data = await loadJsonFile('hitster-de.json');
+    
+    const card = data.cards.find(c => c.id === cardId);
+    
+    if (card) {
+      res.json(card);
+    } else {
+      res.status(404).json({ error: 'Karte nicht gefunden' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Fehler beim Suchen der Karte', details: error.message });
+  }
+});
+
+// Route: Gescannte Karte abrufen (Scan-Code Format: /scan/:edition/:cardId)
+app.get('/scan/:edition/:cardId', authenticateApiKey, async (req, res) => {
+  try {
+    const { edition, cardId } = req.params;
+    
+    // Dateiname basierend auf Edition erstellen
+    const filename = `hitster-de-${edition}.json`;
+    
+    let data;
+    try {
+      // Versuche spezifische Edition zu laden
+      data = await loadJsonFile(filename);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        // Falls Edition nicht gefunden, versuche in Haupt-Datei zu suchen
+        data = await loadJsonFile('hitster-de.json');
+      } else {
+        throw error;
+      }
+    }
+    
+    // Karte in den Daten suchen
+    const card = data.cards.find(c => c.id === cardId);
+    
+    if (card) {
+      res.json({
+        edition: data.edition || edition,
+        scanCode: `${edition}/${cardId}`,
+        card: card
+      });
+    } else {
+      res.status(404).json({ 
+        error: 'Karte nicht gefunden',
+        scanCode: `${edition}/${cardId}`,
+        edition: edition,
+        cardId: cardId
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Fehler beim Laden der gescannten Karte', 
+      details: error.message 
+    });
+  }
+});
+
+// Route: Nur Apple-ID für gescannte Karte abrufen
+app.get('/scan/:edition/:cardId/apple', authenticateApiKey, async (req, res) => {
+  try {
+    const { edition, cardId } = req.params;
+    
+    // Dateiname basierend auf Edition erstellen
+    const filename = `hitster-de-${edition}.json`;
+    
+    let data;
+    try {
+      // Versuche spezifische Edition zu laden
+      data = await loadJsonFile(filename);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        // Falls Edition nicht gefunden, versuche in Haupt-Datei zu suchen
+        data = await loadJsonFile('hitster-de.json');
+      } else {
+        throw error;
+      }
+    }
+    
+    // Karte in den Daten suchen
+    const card = data.cards.find(c => c.id === cardId);
+    
+    if (card) {
+      res.json({
+        appleId: card.apple?.id || "",
+        appleUri: card.apple?.uri || ""
+      });
+    } else {
+      res.status(404).json({ 
+        error: 'Karte nicht gefunden',
+        scanCode: `${edition}/${cardId}`
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Fehler beim Laden der Apple-ID', 
+      details: error.message 
+    });
+  }
+});
+
+// Route: Direkter Scan-Aufruf ohne /scan prefix (z.B. /aaaa0007/00001)
+app.get('/:edition/:cardId', async (req, res) => {
+  try {
+    const { edition, cardId } = req.params;
+    
+    // Überspringe API-Routen und Health-Check
+    if (edition === 'api' || edition === 'health' || edition === 'scan') {
+      return res.status(404).json({ error: 'Route nicht gefunden' });
+    }
+    
+    // Dateiname basierend auf Edition erstellen
+    const filename = `hitster-de-${edition}.json`;
+    
+    let data;
+    try {
+      // Versuche spezifische Edition zu laden
+      data = await loadJsonFile(filename);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        // Falls Edition nicht gefunden, versuche in Haupt-Datei zu suchen
+        data = await loadJsonFile('hitster-de.json');
+      } else {
+        throw error;
+      }
+    }
+    
+    // Karte in den Daten suchen
+    const card = data.cards.find(c => c.id === cardId);
+    
+    if (card) {
+      res.json({
+        edition: data.edition || edition,
+        scanCode: `${edition}/${cardId}`,
+        card: card
+      });
+    } else {
+      res.status(404).json({ 
+        error: 'Karte nicht gefunden',
+        scanCode: `${edition}/${cardId}`,
+        edition: edition,
+        cardId: cardId
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Fehler beim Laden der gescannten Karte', 
+      details: error.message 
+    });
+  }
+});
+
+// Route: Neue Karte in Import-Datei hinzufügen
+app.post('/api/cards', authenticateApiKey, async (req, res) => {
+  try {
+    const newCard = req.body;
+    
+    // Validierung
+    const validationErrors = validateCard(newCard);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({ 
+        error: 'Validierungsfehler',
+        details: validationErrors 
+      });
+    }
+    
+    // Import-Datei laden
+    const importData = await loadImportFile();
+    
+    // Prüfe ob Karte bereits existiert (für Update vs. Neuanlage)
+    const existingImportIndex = importData.imports.findIndex(
+      imp => imp.card.id === newCard.id
+    );
+    
+    const isUpdate = existingImportIndex !== -1;
+    const importId = generateImportId();
+    const timestamp = new Date().toISOString();
+    
+    // Erstelle Import-Eintrag
+    const importEntry = {
+      importId: importId,
+      type: isUpdate ? 'update' : 'new',
+      timestamp: timestamp,
+      card: {
+        id: newCard.id,
+        title: newCard.title,
+        artist: newCard.artist,
+        year: newCard.year,
+        edition: newCard.edition,
+        language_short: newCard.language_short,
+        language_long: newCard.language_long,
+        apple: newCard.apple || { id: "", uri: "" },
+        spotify: newCard.spotify || { id: "", uri: "" }
+      }
+    };
+    
+    // Wenn Update, ersetze den alten Eintrag
+    if (isUpdate) {
+      importData.imports[existingImportIndex] = importEntry;
+    } else {
+      // Ansonsten füge neuen Eintrag hinzu
+      importData.imports.push(importEntry);
+    }
+    
+    // Speichern
+    await saveImportFile(importData);
+    
+    res.status(isUpdate ? 200 : 201).json({
+      message: isUpdate ? 'Karte wurde aktualisiert' : 'Neue Karte wurde hinzugefügt',
+      importId: importId,
+      type: isUpdate ? 'update' : 'new',
+      timestamp: timestamp,
+      card: importEntry.card,
+      totalImports: importData.imports.length,
+      file: 'hitster-de-import.json'
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Fehler beim Hinzufügen der Karte', 
+      details: error.message 
+    });
+  }
+});
+
+// Route: Alle Karten aus der Import-Datei abrufen
+app.get('/api/import', authenticateApiKey, async (req, res) => {
+  try {
+    const importData = await loadImportFile();
+    res.json(importData);
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Fehler beim Laden der Import-Datei', 
+      details: error.message 
+    });
+  }
+});
+
+// Route: Import-Datei leeren
+app.delete('/api/import', authenticateApiKey, async (req, res) => {
+  try {
+    const emptyData = {
+      edition: "Hitster Deutschland - Import",
+      language_short: "de",
+      language_long: "Deutsch",
+      identifier: "import",
+      imports: []
+    };
+    await saveImportFile(emptyData);
+    res.json({ 
+      message: 'Import-Datei wurde geleert',
+      file: 'hitster-de-import.json'
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Fehler beim Leeren der Import-Datei', 
+      details: error.message 
+    });
+  }
+});
+
+// Route: Apple Music Daten zu einer Karte hinzufügen/aktualisieren
+app.patch('/api/cards/:edition/:cardId/apple', authenticateApiKey, async (req, res) => {
+  try {
+    const { edition, cardId } = req.params;
+    const { appleId, appleUri } = req.body;
+
+    if (!appleId && !appleUri) {
+      return res.status(400).json({ 
+        error: 'Entweder appleId oder appleUri muss angegeben werden' 
+      });
+    }
+
+    // Bestimme den Dateinamen
+    let filename;
+    if (edition === 'hitster-de' || edition === '') {
+      filename = 'hitster-de.json';
+    } else {
+      filename = `hitster-de-${edition}.json`;
+    }
+
+    // Lade die Datei
+    const data = await loadJsonFile(filename);
+    
+    // Finde die Karte
+    const cardIndex = data.cards.findIndex(c => c.id === cardId);
+    
+    if (cardIndex === -1) {
+      return res.status(404).json({ 
+        error: 'Karte nicht gefunden',
+        edition: edition,
+        cardId: cardId,
+        file: filename
+      });
+    }
+
+    // Aktualisiere die Apple Music Daten
+    if (!data.cards[cardIndex].apple) {
+      data.cards[cardIndex].apple = {};
+    }
+    
+    if (appleId !== undefined) {
+      data.cards[cardIndex].apple.id = appleId;
+    }
+    if (appleUri !== undefined) {
+      data.cards[cardIndex].apple.uri = appleUri;
+    }
+
+    // Speichere die aktualisierte Datei
+    const filePath = path.join(DATA_DIR, filename);
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+
+    res.json({
+      message: 'Apple Music Daten erfolgreich aktualisiert',
+      card: data.cards[cardIndex],
+      file: filename
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Fehler beim Aktualisieren der Apple Music Daten', 
+      details: error.message 
+    });
+  }
+});
+
+// Route: Apple Music Daten für mehrere Karten aktualisieren (Batch)
+app.patch('/api/cards/apple/batch', authenticateApiKey, async (req, res) => {
+  try {
+    const { updates } = req.body;
+
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({ 
+        error: 'updates Array muss angegeben werden und darf nicht leer sein',
+        example: {
+          updates: [
+            { edition: "aaaa0007", cardId: "00001", appleId: "123456", appleUri: "https://..." }
+          ]
+        }
+      });
+    }
+
+    const results = {
+      success: [],
+      failed: []
+    };
+
+    // Gruppiere Updates nach Datei für effizientes Speichern
+    const fileUpdates = {};
+    
+    for (const update of updates) {
+      const { edition, cardId, appleId, appleUri } = update;
+      
+      if (!edition || !cardId) {
+        results.failed.push({ 
+          edition, 
+          cardId, 
+          error: 'edition und cardId sind erforderlich' 
+        });
+        continue;
+      }
+
+      let filename;
+      if (edition === 'hitster-de' || edition === '') {
+        filename = 'hitster-de.json';
+      } else {
+        filename = `hitster-de-${edition}.json`;
+      }
+
+      if (!fileUpdates[filename]) {
+        try {
+          fileUpdates[filename] = await loadJsonFile(filename);
+        } catch (error) {
+          results.failed.push({ 
+            edition, 
+            cardId, 
+            error: `Datei ${filename} konnte nicht geladen werden` 
+          });
+          continue;
+        }
+      }
+
+      const data = fileUpdates[filename];
+      const cardIndex = data.cards.findIndex(c => c.id === cardId);
+
+      if (cardIndex === -1) {
+        results.failed.push({ 
+          edition, 
+          cardId, 
+          error: 'Karte nicht gefunden' 
+        });
+        continue;
+      }
+
+      // Aktualisiere die Apple Music Daten
+      if (!data.cards[cardIndex].apple) {
+        data.cards[cardIndex].apple = {};
+      }
+      
+      if (appleId !== undefined) {
+        data.cards[cardIndex].apple.id = appleId;
+      }
+      if (appleUri !== undefined) {
+        data.cards[cardIndex].apple.uri = appleUri;
+      }
+
+      results.success.push({ 
+        edition, 
+        cardId, 
+        file: filename 
+      });
+    }
+
+    // Speichere alle aktualisierten Dateien
+    for (const [filename, data] of Object.entries(fileUpdates)) {
+      const filePath = path.join(DATA_DIR, filename);
+      await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    }
+
+    res.json({
+      message: `${results.success.length} Karten erfolgreich aktualisiert`,
+      summary: {
+        total: updates.length,
+        success: results.success.length,
+        failed: results.failed.length,
+        filesUpdated: Object.keys(fileUpdates).length
+      },
+      results: results
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Fehler beim Batch-Update der Apple Music Daten', 
+      details: error.message 
+    });
+  }
+});
+
+// Route: Neue Datei erstellen
+app.post('/api/files', authenticateApiKey, async (req, res) => {
+  try {
+    const { edition, identifier, language_short, language_long } = req.body;
+
+    // Validierung
+    if (!edition || !identifier) {
+      return res.status(400).json({ 
+        error: 'Validierungsfehler',
+        message: 'edition und identifier sind erforderlich',
+        example: {
+          edition: "Hitster Deutschland Test Edition",
+          identifier: "aaaa0099",
+          language_short: "de",
+          language_long: "Deutsch"
+        }
+      });
+    }
+
+    // Validiere identifier Format (8 Zeichen)
+    if (!/^[a-z0-9]{8}$/.test(identifier)) {
+      return res.status(400).json({ 
+        error: 'Validierungsfehler',
+        message: 'identifier muss genau 8 Zeichen (a-z, 0-9) lang sein, z.B. "aaaa0099"'
+      });
+    }
+
+    // Generiere Dateinamen
+    const filename = `hitster-de-${identifier}.json`;
+    const filePath = path.join(DATA_DIR, filename);
+
+    // Prüfe ob Datei bereits existiert
+    try {
+      await fs.access(filePath);
+      return res.status(409).json({ 
+        error: 'Datei existiert bereits',
+        message: `Eine Datei mit dem identifier "${identifier}" existiert bereits`,
+        filename: filename
+      });
+    } catch {
+      // Datei existiert nicht, gut!
+    }
+
+    // Erstelle initiale Struktur
+    const initialData = {
+      edition: edition,
+      language_short: language_short || 'de',
+      language_long: language_long || 'Deutsch',
+      identifier: identifier,
+      cards: []
+    };
+
+    // Speichere neue Datei
+    await fs.writeFile(filePath, JSON.stringify(initialData, null, 2), 'utf-8');
+
+    res.status(201).json({
+      message: 'Datei erfolgreich erstellt',
+      filename: filename,
+      data: initialData
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Fehler beim Erstellen der Datei', 
+      details: error.message 
+    });
+  }
+});
+
+// Route: Neue Card zu einer Edition hinzufügen
+app.post('/api/files/:filename/cards', authenticateApiKey, async (req, res) => {
+  try {
+    const { filename } = req.params;
+    const newCard = req.body;
+
+    // Validierung
+    if (!newCard.id || !newCard.title || !newCard.artist || !newCard.year) {
+      return res.status(400).json({ 
+        error: 'Validierungsfehler',
+        message: 'id, title, artist und year sind erforderlich',
+        example: {
+          id: "00001",
+          title: "Song Title",
+          artist: "Artist Name",
+          year: "2020",
+          apple: { id: "", uri: "" },
+          spotify: { id: "", uri: "" }
+        }
+      });
+    }
+
+    // Datei laden
+    const filePath = path.join(DATA_DIR, filename);
+    
+    try {
+      await fs.access(filePath);
+    } catch {
+      return res.status(404).json({ 
+        error: 'Datei nicht gefunden',
+        message: `Die Datei "${filename}" existiert nicht`
+      });
+    }
+
+    const fileContent = await fs.readFile(filePath, 'utf-8');
+    const data = JSON.parse(fileContent);
+
+    // Prüfe ob Card-ID bereits existiert
+    const existingCard = data.cards.find(c => c.id === newCard.id);
+    if (existingCard) {
+      return res.status(409).json({ 
+        error: 'Card existiert bereits',
+        message: `Eine Card mit der ID "${newCard.id}" existiert bereits in dieser Edition`
+      });
+    }
+
+    // Card-Struktur vorbereiten mit vollständiger Struktur
+    const card = {
+      id: newCard.id,
+      title: newCard.title,
+      artist: newCard.artist,
+      year: newCard.year,
+      apple: {
+        id: newCard.apple?.id || "",
+        uri: newCard.apple?.uri || ""
+      },
+      spotify: {
+        id: newCard.spotify?.id || "",
+        uri: newCard.spotify?.uri || "",
+        url: newCard.spotify?.url || ""
+      }
+    };
+
+    // Card hinzufügen
+    data.cards.push(card);
+
+    // Datei speichern
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+
+    res.status(201).json({
+      message: 'Card erfolgreich hinzugefügt',
+      filename: filename,
+      edition: data.edition,
+      card: card,
+      totalCards: data.cards.length
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Fehler beim Hinzufügen der Card', 
+      details: error.message 
+    });
+  }
+});
+
+// Route: Card aktualisieren (PUT /api/files/:filename/cards/:cardId)
+app.put('/api/files/:filename/cards/:cardId', authenticateApiKey, async (req, res) => {
+  try {
+    const { filename, cardId } = req.params;
+    const updateData = req.body;
+
+    // Validierung: Filename muss hitster-de-*.json sein
+    if (!filename.match(/^hitster-de-[a-z0-9]{8}\.json$/)) {
+      return res.status(400).json({ 
+        error: 'Ungültiger Dateiname',
+        message: 'Dateiname muss dem Muster hitster-de-xxxxxxxx.json entsprechen'
+      });
+    }
+
+    const filePath = path.join(DATA_DIR, filename);
+
+    // Prüfe ob Datei existiert
+    try {
+      await fs.access(filePath);
+    } catch {
+      return res.status(404).json({ 
+        error: 'Datei nicht gefunden',
+        filename: filename 
+      });
+    }
+
+    // Datei laden
+    const fileContent = await fs.readFile(filePath, 'utf-8');
+    const data = JSON.parse(fileContent);
+
+    // Card finden
+    const cardIndex = data.cards.findIndex(c => c.id === cardId);
+    
+    if (cardIndex === -1) {
+      return res.status(404).json({ 
+        error: 'Card nicht gefunden',
+        cardId: cardId,
+        filename: filename
+      });
+    }
+
+    // Bestehende Card
+    const existingCard = data.cards[cardIndex];
+
+    // Update-Daten vorbereiten - nur erlaubte Felder aktualisieren
+    const updatedCard = {
+      ...existingCard,
+      ...(updateData.title && { title: updateData.title }),
+      ...(updateData.artist && { artist: updateData.artist }),
+      ...(updateData.year && { year: updateData.year })
+    };
+
+    // Spotify-Daten aktualisieren
+    if (updateData.spotify !== undefined) {
+      if (updateData.spotify === null) {
+        // Spotify-Daten entfernen
+        updatedCard.spotify = { id: "", uri: "", url: "" };
+      } else {
+        updatedCard.spotify = {
+          id: updateData.spotify.id || existingCard.spotify?.id || "",
+          uri: updateData.spotify.uri || existingCard.spotify?.uri || "",
+          url: updateData.spotify.url || existingCard.spotify?.url || ""
+        };
+      }
+    }
+
+    // Apple-Daten aktualisieren
+    if (updateData.apple !== undefined) {
+      if (updateData.apple === null) {
+        // Apple-Daten entfernen
+        updatedCard.apple = { id: "", uri: "" };
+      } else {
+        updatedCard.apple = {
+          id: updateData.apple.id || existingCard.apple?.id || "",
+          uri: updateData.apple.uri || existingCard.apple?.uri || ""
+        };
+      }
+    }
+
+    // Card ersetzen
+    data.cards[cardIndex] = updatedCard;
+
+    // Datei speichern
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+
+    res.json({
+      message: 'Card erfolgreich aktualisiert',
+      filename: filename,
+      edition: data.edition,
+      card: updatedCard
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Fehler beim Aktualisieren der Card', 
+      details: error.message 
+    });
+  }
+});
+
+// Route: Spotify Playlist Sync (POST /api/files/:filename/spotify-sync)
+app.post('/api/files/:filename/spotify-sync', authenticateApiKey, async (req, res) => {
+  try {
+    const { filename } = req.params;
+
+    // Validierung: Filename darf nicht import sein
+    if (filename === 'hitster-de-import.json') {
+      return res.status(400).json({ 
+        error: 'Ungültiger Dateiname',
+        message: 'Import-Datei kann nicht synchronisiert werden'
+      });
+    }
+
+    // Validierung: Filename muss hitster-de*.json sein
+    if (!filename.match(/^hitster-de.*\.json$/)) {
+      return res.status(400).json({ 
+        error: 'Ungültiger Dateiname',
+        message: 'Dateiname muss dem Muster hitster-de*.json entsprechen'
+      });
+    }
+
+    const filePath = path.join(DATA_DIR, filename);
+
+    // Prüfe ob Datei existiert
+    try {
+      await fs.access(filePath);
+    } catch {
+      return res.status(404).json({ 
+        error: 'Datei nicht gefunden',
+        filename: filename 
+      });
+    }
+
+    // Datei laden
+    const fileContent = await fs.readFile(filePath, 'utf-8');
+    const data = JSON.parse(fileContent);
+
+    // Prüfe ob spotify_playlist URL vorhanden ist
+    if (!data.spotify_playlist || data.spotify_playlist === '') {
+      return res.status(400).json({
+        error: 'Keine Spotify Playlist URL',
+        message: 'Das Feld "spotify_playlist" ist leer oder nicht vorhanden'
+      });
+    }
+
+    // Extrahiere Playlist ID
+    const playlistId = extractPlaylistId(data.spotify_playlist);
+    if (!playlistId) {
+      return res.status(400).json({
+        error: 'Ungültige Spotify Playlist URL',
+        message: 'Konnte Playlist ID nicht aus URL extrahieren'
+      });
+    }
+
+    // Lade Playlist Tracks von Spotify
+    console.log(`Lade Tracks von Spotify Playlist ${playlistId}...`);
+    const playlistTracks = await getSpotifyPlaylistTracks(playlistId);
+    console.log(`${playlistTracks.length} Tracks von Spotify geladen`);
+
+    // Statistiken
+    let updated = 0;
+    let skipped = 0;
+    let notFound = 0;
+    const updateDetails = [];
+
+    // Hilfsfunktion: Levenshtein-Distanz berechnen
+    const levenshteinDistance = (str1, str2) => {
+      const matrix = [];
+      for (let i = 0; i <= str2.length; i++) {
+        matrix[i] = [i];
+      }
+      for (let j = 0; j <= str1.length; j++) {
+        matrix[0][j] = j;
+      }
+      for (let i = 1; i <= str2.length; i++) {
+        for (let j = 1; j <= str1.length; j++) {
+          if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+            matrix[i][j] = matrix[i - 1][j - 1];
+          } else {
+            matrix[i][j] = Math.min(
+              matrix[i - 1][j - 1] + 1,
+              matrix[i][j - 1] + 1,
+              matrix[i - 1][j] + 1
+            );
+          }
+        }
+      }
+      return matrix[str2.length][str1.length];
+    };
+
+    // Hilfsfunktion: Ähnlichkeit in Prozent (0-100)
+    const similarity = (str1, str2) => {
+      const longer = str1.length > str2.length ? str1 : str2;
+      const shorter = str1.length > str2.length ? str2 : str1;
+      if (longer.length === 0) return 100;
+      const distance = levenshteinDistance(longer, shorter);
+      return ((longer.length - distance) / longer.length) * 100;
+    };
+
+    // Iteriere über alle Cards
+    for (let i = 0; i < data.cards.length; i++) {
+      const card = data.cards[i];
+      
+      // Überspringe Cards die bereits Spotify-Daten haben
+      if (card.spotify?.id && card.spotify.id !== '') {
+        skipped++;
+        continue;
+      }
+
+      // Versuche Track in Playlist zu finden basierend auf Artist und Title
+      // Versuche zuerst exaktes Matching, dann Fuzzy-Matching
+      let matchedTrack = null;
+      let bestMatch = null;
+      let bestScore = 0;
+
+      for (const track of playlistTracks) {
+        const trackArtists = track.artists.toLowerCase();
+        const trackName = track.name.toLowerCase();
+        const cardArtist = (card.artist || '').toLowerCase();
+        const cardTitle = (card.title || '').toLowerCase();
+
+        // Normalisiere Strings (entferne feat./ft., Sonderzeichen, extra Leerzeichen)
+        const normalizeString = (str) => {
+          return str
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Entferne Akzente (é→e, à→a)
+            .replace(/\s*\(?\s*(feat\.|ft\.|featuring)\s+[^)]*\)?/gi, '') // Entferne feat.
+            .replace(/p!nk/gi, 'pink') // Normalisiere P!nk zu Pink
+            .replace(/[^\w\s]/g, ' ') // Ersetze Sonderzeichen mit Leerzeichen
+            .replace(/\s+/g, ' ') // Mehrfache Leerzeichen zu einem
+            .trim();
+        };
+
+        const normalizedTrackName = normalizeString(trackName);
+        
+        // Extrahiere Text in Klammern aus Titel (z.B. "Grease (Summer Nights)" -> "Summer Nights")
+        // Dies ist oft der eigentliche Song-Titel bei Soundtracks
+        let titleForMatching = cardTitle;
+        const parenthesesMatch = cardTitle.match(/\(([^)]+)\)/);
+        if (parenthesesMatch) {
+          titleForMatching = parenthesesMatch[1]; // Verwende Text in Klammern
+        }
+        const normalizedCardTitle = normalizeString(titleForMatching);
+        
+        // Extrahiere Haupt-Artist (vor "&", ",")
+        const mainArtist = normalizeString(cardArtist.split(/[&,]/)[0]);
+        const normalizedTrackArtists = normalizeString(trackArtists);
+
+        // Exaktes Matching (bevorzugt)
+        const titleMatch = normalizedTrackName.includes(normalizedCardTitle) || 
+                          normalizedCardTitle.includes(normalizedTrackName);
+        const artistMatch = normalizedTrackArtists.includes(mainArtist) || 
+                           normalizeString(cardArtist).includes(normalizedTrackArtists);
+
+        if (titleMatch && artistMatch) {
+          matchedTrack = track;
+          break; // Exakter Match gefunden, fertig
+        }
+
+        // Fuzzy-Matching: Berechne Ähnlichkeit
+        const titleSimilarity = similarity(normalizedTrackName, normalizedCardTitle);
+        const artistSimilarity = similarity(normalizedTrackArtists, mainArtist);
+        
+        // Gewichteter Score: Title 60%, Artist 40%
+        const score = (titleSimilarity * 0.6) + (artistSimilarity * 0.4);
+        
+        // Mindestens 70% Ähnlichkeit erforderlich (gesenkt für bessere Matches)
+        if (score > bestScore && score >= 70) {
+          bestScore = score;
+          bestMatch = track;
+        }
+      }
+
+      // Verwende besten Fuzzy-Match falls kein exakter Match gefunden wurde
+      if (!matchedTrack && bestMatch) {
+        matchedTrack = bestMatch;
+      }
+
+      // Fallback: Wenn immer noch kein Match, verwende Track an derselben Position in der Playlist
+      // (Card-ID entspricht Position in Playlist)
+      if (!matchedTrack && i < playlistTracks.length) {
+        matchedTrack = playlistTracks[i];
+      }
+
+      if (matchedTrack) {
+        // Update Card mit Spotify-Daten
+        card.spotify = {
+          id: matchedTrack.id,
+          uri: matchedTrack.uri,
+          url: matchedTrack.url
+        };
+        updated++;
+        updateDetails.push({
+          cardId: card.id,
+          title: card.title,
+          artist: card.artist,
+          spotifyTrack: matchedTrack.name,
+          spotifyArtists: matchedTrack.artists
+        });
+      } else {
+        notFound++;
+      }
+    }
+
+    // Datei speichern wenn Updates vorgenommen wurden
+    if (updated > 0) {
+      await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    }
+
+    res.json({
+      message: 'Spotify Sync abgeschlossen',
+      filename: filename,
+      edition: data.edition,
+      playlistId: playlistId,
+      playlistUrl: data.spotify_playlist,
+      statistics: {
+        totalCards: data.cards.length,
+        updated: updated,
+        skipped: skipped,
+        notFound: notFound,
+        playlistTracks: playlistTracks.length
+      },
+      updates: updateDetails
+    });
+  } catch (error) {
+    console.error('Fehler beim Spotify Sync:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim Spotify Sync', 
+      details: error.message 
+    });
+  }
+});
+
+// Route: iTunes/Apple Music Sync (POST /api/files/:filename/itunes-sync)
+app.post('/api/files/:filename/itunes-sync', authenticateApiKey, async (req, res) => {
+  try {
+    const { filename } = req.params;
+    const { country = 'de' } = req.body; // Optionaler Country-Code
+
+    // Validierung: Filename darf nicht import sein
+    if (filename === 'hitster-de-import.json') {
+      return res.status(400).json({ 
+        error: 'Ungültiger Dateiname',
+        message: 'Import-Datei kann nicht synchronisiert werden'
+      });
+    }
+
+    // Validierung: Filename muss hitster-de*.json sein
+    if (!filename.match(/^hitster-de.*\.json$/)) {
+      return res.status(400).json({ 
+        error: 'Ungültiger Dateiname',
+        message: 'Dateiname muss dem Muster hitster-de*.json entsprechen'
+      });
+    }
+
+    const filePath = path.join(DATA_DIR, filename);
+
+    // Prüfe ob Datei existiert
+    try {
+      await fs.access(filePath);
+    } catch {
+      return res.status(404).json({ 
+        error: 'Datei nicht gefunden',
+        filename: filename 
+      });
+    }
+
+    // Datei laden
+    const fileContent = await fs.readFile(filePath, 'utf-8');
+    const data = JSON.parse(fileContent);
+
+    // Statistiken
+    let updated = 0;
+    let skipped = 0;
+    let notFound = 0;
+    const updateDetails = [];
+
+    console.log(`iTunes Sync gestartet für ${filename} (${data.cards.length} Cards)`);
+
+    // Iteriere über alle Cards
+    for (const card of data.cards) {
+      // Überspringe Cards die bereits iTunes-Daten haben
+      if (card.apple?.id && card.apple.id !== '') {
+        skipped++;
+        continue;
+      }
+
+      // Suche Track in iTunes Search API
+      const itunesTrack = await searchItunesTrack(card.title || '', card.artist || '', country);
+
+      if (itunesTrack) {
+        // Update Card mit iTunes-Daten
+        card.apple = {
+          id: itunesTrack.id,
+          uri: itunesTrack.uri
+        };
+        updated++;
+        updateDetails.push({
+          cardId: card.id,
+          title: card.title,
+          artist: card.artist,
+          itunesTrack: itunesTrack.name,
+          itunesArtist: itunesTrack.artist
+        });
+      } else {
+        notFound++;
+        console.log(`iTunes: Card ${card.id} nicht gefunden: "${card.title}" - ${card.artist}`);
+      }
+
+      // Rate Limiting: 1 Request pro Sekunde für iTunes API (zu schnell = 403 Fehler)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    // Datei speichern wenn Updates vorgenommen wurden
+    if (updated > 0) {
+      await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    }
+
+    res.json({
+      message: 'iTunes Sync abgeschlossen',
+      filename: filename,
+      edition: data.edition,
+      country: country,
+      statistics: {
+        totalCards: data.cards.length,
+        updated: updated,
+        skipped: skipped,
+        notFound: notFound
+      },
+      updates: updateDetails
+    });
+  } catch (error) {
+    console.error('Fehler beim iTunes Sync:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim iTunes Sync', 
+      details: error.message 
+    });
+  }
+});
+
+// Route: iTunes Search für einzelne Card (GET /api/search/itunes)
+app.get('/api/search/itunes', authenticateApiKey, async (req, res) => {
+  try {
+    const { title, artist, country = 'de' } = req.query;
+
+    if (!title || !artist) {
+      return res.status(400).json({
+        error: 'Fehlende Parameter',
+        message: 'title und artist sind erforderlich'
+      });
+    }
+
+    console.log(`iTunes Search: "${title}" - ${artist}`);
+    
+    const result = await searchItunesTrack(String(title), String(artist), String(country));
+
+    if (!result) {
+      return res.status(404).json({
+        error: 'Nicht gefunden',
+        message: 'Kein passender Track in iTunes gefunden',
+        searched: { title, artist, country }
+      });
+    }
+
+    res.json({
+      success: true,
+      track: result,
+      searched: { title, artist, country }
+    });
+  } catch (error) {
+    console.error('Fehler bei iTunes Search:', error);
+    res.status(500).json({
+      error: 'Fehler bei iTunes Search',
+      details: error.message
+    });
+  }
+});
+
+// Health Check
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Route: API-Key generieren (für App-Registrierung)
+app.post('/api/register', async (req, res) => {
+  try {
+    const { appName, appVersion, deviceId, platform } = req.body;
+
+    // Validierung
+    if (!appName || !deviceId) {
+      return res.status(400).json({ 
+        error: 'Validierungsfehler',
+        message: 'appName und deviceId sind erforderlich',
+        example: {
+          appName: "mucajey iOS",
+          appVersion: "1.0.0",
+          deviceId: "ABC123-DEF456",
+          platform: "iOS"
+        }
+      });
+    }
+
+    // Prüfe ob Device bereits registriert ist
+    const existingKey = apiKeysStore.keys.find(k => k.deviceId === deviceId);
+    
+    if (existingKey) {
+      // Device bereits registriert - gebe existierenden Key zurück
+      return res.json({
+        message: 'Device bereits registriert',
+        apiKey: existingKey.key,
+        registeredAt: existingKey.createdAt,
+        appName: existingKey.appName,
+        status: 'existing'
+      });
+    }
+
+    // Generiere neuen API-Key
+    const newApiKey = generateSecureApiKey();
+    const timestamp = new Date().toISOString();
+
+    // Erstelle Key-Eintrag
+    const keyEntry = {
+      key: newApiKey,
+      appName: appName,
+      appVersion: appVersion || 'unknown',
+      deviceId: deviceId,
+      platform: platform || 'unknown',
+      createdAt: timestamp,
+      lastUsed: null,
+      active: true
+    };
+
+    // Füge Key hinzu
+    apiKeysStore.keys.push(keyEntry);
+    await saveApiKeys();
+
+    res.status(201).json({
+      message: 'API-Key erfolgreich generiert',
+      apiKey: newApiKey,
+      appName: appName,
+      deviceId: deviceId,
+      createdAt: timestamp,
+      status: 'new'
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Fehler beim Generieren des API-Keys', 
+      details: error.message 
+    });
+  }
+});
+
+// Server starten
+app.listen(PORT, async () => {
+  // Lade API Keys beim Start
+  await loadApiKeys();
+  
+  console.log(`🚀 Server läuft auf http://localhost:${PORT}`);
+  console.log(`📁 Daten-Verzeichnis: ${DATA_DIR}`);
+  console.log(`📝 Import-Datei: ${IMPORT_FILE}`);
+  console.log(`🔑 API-Keys Verzeichnis: ${API_KEYS_DIR}`);
+  console.log(`🔑 API-Keys Datei: ${API_KEYS_FILE}`);
+  console.log(`🔑 Registrierte API-Keys: ${apiKeysStore.keys.length}`);
+  console.log(`\nVerfügbare Endpoints:`);
+  console.log(`  GET  /health - Health Check`);
+  console.log(`  POST /api/register - API-Key generieren (keine Auth erforderlich)`);
+  console.log(`  GET  /api/files - Liste aller JSON-Dateien`);
+  console.log(`  GET  /api/all-data - Alle Daten aus allen Dateien`);
+  console.log(`  GET  /api/hitster-de - Alle Hitster DE Daten`);
+  console.log(`  GET  /api/data/:filename - Spezifische Datei laden`);
+  console.log(`  GET  /api/cards/:id - Karte nach ID`);
+  console.log(`  GET  /api/cards/year/:year - Karten nach Jahr filtern`);
+  console.log(`  GET  /scan/:edition/:cardId - Gescannte Karte abrufen`);
+  console.log(`  GET  /scan/:edition/:cardId/apple - Nur Apple-ID abrufen`);
+  console.log(`  GET  /:edition/:cardId - Direkter Scan (z.B. /aaaa0007/00001)`);
+  console.log(`  POST /api/cards - Neue Karte zur Import-Datei hinzufügen`);
+  console.log(`  POST /api/files - Neue JSON-Datei erstellen`);
+  console.log(`  POST /api/files/:filename/cards - Neue Card zu Edition hinzufügen`);
+  console.log(`  GET  /api/import - Import-Datei anzeigen`);
+  console.log(`  DELETE /api/import - Import-Datei leeren`);
+  console.log(`  PATCH /api/cards/:edition/:cardId/apple - Apple Music Daten aktualisieren`);
+  console.log(`  PATCH /api/cards/apple/batch - Apple Music Daten für mehrere Karten aktualisieren`);
+});
