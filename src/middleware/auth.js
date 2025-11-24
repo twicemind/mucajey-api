@@ -12,16 +12,17 @@ async function loadApiKeys() {
   try {
     await fs.mkdir(API_KEYS_DIR, { recursive: true });
     const data = await fs.readFile(API_KEYS_FILE, 'utf-8');
-    apiKeysStore = JSON.parse(data);
+    const parsed = JSON.parse(data);
+    apiKeysStore.keys = Array.isArray(parsed.keys) ? parsed.keys : [];
   } catch (error) {
-    apiKeysStore = { keys: [] };
+    apiKeysStore.keys = [];
     await saveApiKeys();
   }
 }
 
 // API Keys Datei speichern
 async function saveApiKeys() {
-  await fs.writeFile(API_KEYS_FILE, JSON.stringify(apiKeysStore, null, 2), 'utf-8');
+  await fs.writeFile(API_KEYS_FILE, JSON.stringify({ keys: apiKeysStore.keys }, null, 2), 'utf-8');
 }
 
 // Generiere sicheren API-Key
