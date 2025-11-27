@@ -21,6 +21,7 @@ RUN mkdir -p /app/data/cards /app/data/api \
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY src/ .
+RUN mkdir -p /app/openapi/paths /app/openapi/dist && chown -R app:app /app/openapi
 
 EXPOSE 3000
 
@@ -28,4 +29,4 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD wget -q --spider http://
 
 USER app
 
-CMD ["node", "server.js"]
+CMD ["npm", "start"]

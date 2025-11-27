@@ -1,23 +1,48 @@
 const express = require('express');
 const fs = require('fs').promises;
 const router = express.Router();
-const { DATA_DIR } = require('../config');
-const { loadJsonFile } = require('../utils/fileUtils');
+const { DATA_DIR } = require('../../config');
+const { loadJsonFile } = require('../../utils/fileUtils');
+const result = require('../../utils/result');
 
 // Alle verfügbaren Dateien auflisten
 router.get('/', async (req, res) => {
   try {
+    const doc = result.documentation({
+      method: 'GET',
+      path: '/',
+      description: 'List all available files'
+    });
+
     const files = await fs.readdir(DATA_DIR);
     const jsonFiles = files.filter(file => file.endsWith('.json'));
-    res.json({ files: jsonFiles });
+    const message = result.message({
+      docs: doc,
+      message: 'List of all available JSON files',
+      data: {
+        files: jsonFiles
+      }
+    });
+    res.json(message);
   } catch (error) {
-    res.status(500).json({ error: 'Fehler beim Laden der Dateien', details: error.message });
+    const errorMessage = result.error({
+      docs: doc,
+      error: 'Fehler beim Laden der Dateien',
+      details: error.message
+    });
+    res.status(500).json(errorMessage);
   }
 });
 
 // Alle Daten aus allen JSON-Dateien zusammenführen
 router.get('/all-data', async (req, res) => {
   try {
+    const doc = result.documentation({
+      method: 'GET',
+      path: '/all-data',
+      description: 'Merge all data from all JSON files'
+    });
+
     const files = await fs.readdir(DATA_DIR);
     const jsonFiles = files.filter(file => 
       file.endsWith('.json') && 
@@ -55,30 +80,46 @@ router.get('/all-data', async (req, res) => {
           }
         }
       } catch (fileError) {
-        console.error(`Fehler beim Laden von ${file}:`, fileError.message);
+        const errorMessage = result.error({
+          docs: doc,
+          error: `Fehler beim Laden von ${file}`,
+          details: fileError.message
+        });
+        console.error(errorMessage);
       }
     }
     
-    res.json({
-      summary: {
+    const message = result.message({
+      docs: doc,
+      message: 'All data merged from JSON files',
+      data: {
         totalCards: allCards.length,
         totalEditions: editions.length,
-        totalFiles: jsonFiles.length
-      },
-      editions: editions,
-      cards: allCards
+        totalFiles: jsonFiles.length,
+        editions: editions,
+        cards: allCards
+      }
     });
+    res.json(message);
   } catch (error) {
-    res.status(500).json({ 
-      error: 'Fehler beim Laden aller Daten', 
-      details: error.message 
+    const errorMessage = result.error({
+      docs: doc,
+      error: 'Fehler beim Laden aller Daten',
+      details: error.message
     });
+    res.status(500).json(errorMessage);
   }
 });
 
 // Spezifische Datei laden
 router.get('/:filename', async (req, res) => {
   try {
+    const doc = result.documentation({
+      method: 'GET',
+      path: '/:filename',
+      description: 'Load specific file'
+    });
+
     const filename = req.params.filename;
     
     if (!filename.endsWith('.json')) {
@@ -86,12 +127,26 @@ router.get('/:filename', async (req, res) => {
     }
     
     const data = await loadJsonFile(filename);
-    res.json(data);
+    const message = result.message({
+      docs: doc,
+      message: `Datei ${filename} geladen.`,
+      data: data
+    });
+    res.json(message);
   } catch (error) {
     if (error.code === 'ENOENT') {
-      res.status(404).json({ error: 'Datei nicht gefunden' });
+      const errorMessage = result.error({
+        docs: doc,
+        error: 'Datei nicht gefunden.'
+      });
+      res.status(404).json(errorMessage);
     } else {
-      res.status(500).json({ error: 'Fehler beim Laden der Datei', details: error.message });
+      const errorMessage = result.error({
+        docs: doc,
+        error: 'Fehler beim Laden der Datei',
+        details: error.message
+      });
+      res.status(500).json(errorMessage);
     }
   }
 });

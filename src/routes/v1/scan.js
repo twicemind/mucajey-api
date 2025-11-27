@@ -2,13 +2,20 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs').promises;
 const path = require('path');
-const { loadJsonFile } = require('../utils/fileUtils');
-const { searchItunesTrack } = require('../utils/itunesUtils');
-const config = require('../config');
+const { loadJsonFile } = require('../../utils/fileUtils');
+const { searchItunesTrack } = require('../../utils/itunesUtils');
+const config = require('../../config');
+const result = require('../../utils/result');
 
 // Gescannte Karte abrufen (mit Auto-Sync für Apple Music)
 router.get('/:edition/:cardId', async (req, res) => {
   try {
+    const doc = result.documentation({
+      method: 'GET',
+      path: '/:edition/:cardId',
+      description: 'Get scanned card with auto-sync for Apple Music'
+    });
+
     const { edition, cardId } = req.params;
     const filename = `hitster-de-${edition}.json`;
     
@@ -60,26 +67,44 @@ router.get('/:edition/:cardId', async (req, res) => {
         }
       }
       
-      res.json({
-        edition: data.edition || edition,
-        scanCode: `${edition}/${cardId}`,
-        card: card,
-        autoSynced: autoSynced
+      const message = result.message({
+        docs: doc,
+        message: `Karte ${cardId} geladen.`,
+        data: {
+          edition: data.edition || edition,
+          scanCode: `${edition}/${cardId}`,
+          card: card,
+          autoSynced: autoSynced
+        }
       });
+      res.json(message);
     } else {
-      res.status(404).json({ 
+      const errorMessage = result.error({
+        docs: doc,
         error: 'Karte nicht gefunden',
-        scanCode: `${edition}/${cardId}`
+        details: `${edition}/${cardId}`
       });
+      res.status(404).json(errorMessage);
     }
   } catch (error) {
-    res.status(500).json({ error: 'Fehler beim Laden der Karte', details: error.message });
+    const errorMessage = result.error({
+      docs: doc,
+      error: 'Fehler beim Laden der Karte',
+      details: error.message
+    });
+    res.status(500).json(errorMessage);
   }
 });
 
 // Nur Apple-ID abrufen
 router.get('/:edition/:cardId/apple', async (req, res) => {
   try {
+    const doc = result.documentation({
+      method: 'GET',
+      path: '/:edition/:cardId/apple',
+      description: 'Get only Apple ID'
+    });
+
     const { edition, cardId } = req.params;
     const filename = `hitster-de-${edition}.json`;
     
@@ -97,15 +122,30 @@ router.get('/:edition/:cardId/apple', async (req, res) => {
     const card = data.cards.find(c => c.id === cardId);
     
     if (card && card.apple && card.apple.id) {
-      res.json({
-        apple_id: card.apple.id,
-        apple_uri: card.apple.uri || null
+      const message = result.message({
+        docs: doc,
+        message: `Apple ID für Karte ${cardId} geladen.`,
+        data: {
+          apple_id: card.apple.id,
+          apple_uri: card.apple.uri || null
+        }
       });
+      res.json(message);
     } else {
-      res.status(404).json({ error: 'Apple Music Daten nicht gefunden' });
+      const errorMessage = result.error({
+        docs: doc,
+        error: 'Apple Music Daten nicht gefunden',
+        details: `${edition}/${cardId}`
+      });
+      res.status(404).json(errorMessage);
     }
   } catch (error) {
-    res.status(500).json({ error: 'Fehler beim Laden der Apple Daten', details: error.message });
+    const errorMessage = result.error({
+      docs: doc,
+      error: 'Fehler beim Laden der Apple Daten',
+      details: error.message
+    });
+    res.status(500).json(errorMessage);
   }
 });
 

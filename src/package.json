@@ -4,15 +4,24 @@
   "description": "Node.js backend server for mucajey",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "openapi:gen": "node scripts/generate-openapi-from-routes.mjs",
+    "openapi:bundle": "node scripts/build-openapi-bundle.mjs",
+    "openapi:build": "npm run openapi:gen && npm run openapi:bundle",
+    "start": "npm run openapi:build && node server.js",
     "dev": "nodemon server.js"
   },
   "keywords": ["hitster", "music", "api"],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@babel/parser": "^7.23.3",
+    "@babel/traverse": "^7.23.1",
     "axios": "^1.6.0",
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "glob": "^10.3.2",
+    "js-yaml": "^4.1.0",
+    "swagger-ui-express": "^5.0.0",
+    "yamljs": "^0.3.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

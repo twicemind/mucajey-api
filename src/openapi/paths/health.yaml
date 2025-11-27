@@ -1,0 +1,11 @@
+paths:
+  /health:
+    get:
+      summary: Health check endpoint to verify if the API is running.
+      description: Health check endpoint to verify if the API is running.
+      tags:
+        - Health
+      parameters: []
+      responses:
+        '200':
+          description: Successful response

@@ -2,38 +2,51 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs').promises;
 const path = require('path');
-const { DATA_DIR } = require('../config');
-const { loadJsonFile } = require('../utils/fileUtils');
-const { getSpotifyPlaylistTracks, extractPlaylistId } = require('../utils/spotifyUtils');
-const { searchItunesTrack } = require('../utils/itunesUtils');
+const { DATA_DIR } = require('../../config');
+const { loadJsonFile } = require('../../utils/fileUtils');
+const { getSpotifyPlaylistTracks, extractPlaylistId } = require('../../utils/spotifyUtils');
+const { searchItunesTrack } = require('../../utils/itunesUtils');
+const result = require('../../utils/result');
 
 // Spotify Playlist Sync
 router.post('/:filename/spotify-sync', async (req, res) => {
   try {
+    const doc = result.documentation({
+      method: 'POST',
+      path: '/:filename/spotify-sync',
+      description: 'Spotify Playlist Sync'
+    });
+
     const filename = req.params.filename;
     
     if (!filename.match(/^hitster-de.*\.json$/) || filename.includes('import')) {
-      return res.status(400).json({ 
+      const errorMessage = result.error({
+        docs: doc,
         error: 'Ungültiger Dateiname',
-        message: 'Nur hitster-de*.json Dateien erlaubt (außer import)'
+        details: 'Nur hitster-de*.json Dateien erlaubt (außer import)'
       });
+      return res.status(400).json(errorMessage);
     }
 
     const data = await loadJsonFile(filename);
     
     if (!data.playlist || !data.playlist.url) {
-      return res.status(400).json({ 
+      const errorMessage = result.error({
+        docs: doc,
         error: 'Keine Playlist URL',
-        message: 'Die Datei enthält keine Playlist URL'
+        details: 'Die Datei enthält keine Playlist URL'
       });
+      return res.status(400).json(errorMessage);
     }
 
     const playlistId = extractPlaylistId(data.playlist.url);
     if (!playlistId) {
-      return res.status(400).json({ 
+      const errorMessage = result.error({
+        docs: doc,
         error: 'Ungültige Playlist URL',
-        message: 'Playlist ID konnte nicht extrahiert werden'
+        details: 'Playlist ID konnte nicht extrahiert werden'
       });
+      return res.status(400).json(errorMessage);
     }
 
     const spotifyTracks = await getSpotifyPlaylistTracks(playlistId);
@@ -76,36 +89,52 @@ router.post('/:filename/spotify-sync', async (req, res) => {
 
     const filePath = path.join(DATA_DIR, filename);
     await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
-
-    res.json({
+    const message = result.message({
+      docs: doc,
       message: 'Spotify Sync abgeschlossen',
-      filename: filename,
-      edition: data.edition,
-      playlistId: playlistId,
-      statistics: {
-        totalCards: data.cards.length,
-        updated: updated,
-        skipped: skipped,
-        notFound: notFound
-      },
-      updates: updates
+      data: {
+        filename: filename,
+        edition: data.edition,
+        playlistId: playlistId,
+        statistics: {
+          totalCards: data.cards.length,
+          updated: updated,
+          skipped: skipped,
+          notFound: notFound
+        },
+        updates: updates
+      }
     });
+    res.json(message);
   } catch (error) {
-    res.status(500).json({ error: 'Fehler beim Spotify Sync', details: error.message });
+    const errorMessage = result.error({
+      docs: doc,
+      error: 'Fehler beim Spotify Sync',
+      details: error.message
+    });
+    res.status(500).json(errorMessage);
   }
 });
 
 // iTunes Sync
 router.post('/:filename/itunes-sync', async (req, res) => {
   try {
+    const doc = result.documentation({
+      method: 'POST',
+      path: '/:filename/itunes-sync',
+      description: 'iTunes Sync'
+    });
+
     const filename = req.params.filename;
     const { country = 'de' } = req.body;
     
     if (!filename.match(/^hitster-de.*\.json$/) || filename.includes('import')) {
-      return res.status(400).json({ 
+      const errorMessage = result.error({
+        docs: doc,
         error: 'Ungültiger Dateiname',
-        message: 'Nur hitster-de*.json Dateien erlaubt (außer import)'
+        details: 'Nur hitster-de*.json Dateien erlaubt (außer import)'
       });
+      return res.status(400).json(errorMessage);
     }
 
     const data = await loadJsonFile(filename);
@@ -146,22 +175,30 @@ router.post('/:filename/itunes-sync', async (req, res) => {
 
     const filePath = path.join(DATA_DIR, filename);
     await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
-
-    res.json({
+    const message = result.message({
+      docs: doc,
       message: 'iTunes Sync abgeschlossen',
-      filename: filename,
-      edition: data.edition,
-      country: country,
-      statistics: {
-        totalCards: data.cards.length,
-        updated: updated,
-        skipped: skipped,
-        notFound: notFound
-      },
-      updates: updates
+      data: {
+        filename: filename,
+        edition: data.edition,
+        country: country,
+        statistics: {
+          totalCards: data.cards.length,
+          updated: updated,
+          skipped: skipped,
+          notFound: notFound
+        },
+        updates: updates
+      }
     });
+    res.json(message);
   } catch (error) {
-    res.status(500).json({ error: 'Fehler beim iTunes Sync', details: error.message });
+    const errorMessage = result.error({
+      docs: doc,
+      error: 'Fehler beim iTunes Sync',
+      details: error.message
+    });
+    res.status(500).json(errorMessage);
   }
 });
 

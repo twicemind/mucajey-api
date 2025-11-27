@@ -1,0 +1,37 @@
+paths:
+  /year/{year}:
+    get:
+      summary: Filter cards by year
+      description: Filter cards by year
+      tags:
+        - Cards
+      parameters:
+        - name: year
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+        '500':
+          description: Internal Server Error
+  /{id}:
+    get:
+      summary: Search card by ID
+      description: Search card by ID
+      tags:
+        - Cards
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error

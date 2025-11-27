@@ -1,18 +1,41 @@
 const express = require('express');
 const router = express.Router();
 const { generateSecureApiKey, saveApiKeys, apiKeysStore } = require('../middleware/auth');
+const result = require('../utils/result');
 
-// API-Key generieren
+const registerRouteDocs = {
+  root: {
+    method: 'POST',
+    path: '/api/register',
+    description: 'Issue or return an API key tied to the provided application details.'
+  }
+};
+
+// API-Key registration
 router.post('/', async (req, res) => {
+  const doc = result.documentation({
+    method: 'POST',
+    path: '/api/register',
+    description: 'Issue or return an API key tied to the provided application details.'
+  });
+
   try {
     const { appName, deviceId, appVersion, platform } = req.body || {};
 
     if (!appName) {
-      return res.status(400).json({ error: 'appName ist erforderlich' });
+      const errorMessage = result.error({
+        docs: doc,
+        error: 'appName is required'
+      });
+      return res.status(400).json(errorMessage);
     }
 
     if (!deviceId) {
-      return res.status(400).json({ error: 'deviceId ist erforderlich' });
+      const errorMessage = result.error({
+        docs: doc,
+        error: 'deviceId is required'
+      });
+      return res.status(400).json(errorMessage);
     }
 
     const timestamp = new Date().toISOString();
@@ -31,16 +54,21 @@ router.post('/', async (req, res) => {
 
       await saveApiKeys();
 
-      return res.status(200).json({
-        message: 'API-Key bereits registriert',
-        apiKey: existingKey.key,
-        appName,
-        deviceId,
-        appVersion: existingKey.appVersion ?? null,
-        platform: existingKey.platform ?? null,
-        createdAt: existingKey.createdAt,
-        lastUsed: existingKey.lastUsed,
+      const message = result.message({
+        docs: doc,
+        message: 'API key already registered',
+        data: {
+          apiKey: existingKey.key,
+          appName,
+          deviceId,
+          appVersion: existingKey.appVersion ?? null,
+          platform: existingKey.platform ?? null,
+          createdAt: existingKey.createdAt,
+          lastUsed: existingKey.lastUsed,
+        }
       });
+
+      return res.status(200).json(message);
     }
 
     const newApiKey = generateSecureApiKey();
@@ -60,7 +88,8 @@ router.post('/', async (req, res) => {
     await saveApiKeys();
 
     res.status(201).json({
-      message: 'API-Key erfolgreich generiert',
+      docs: registerRouteDocs.root,
+      message: 'API key successfully generated',
       apiKey: newApiKey,
       appName,
       deviceId,
@@ -70,7 +99,12 @@ router.post('/', async (req, res) => {
       lastUsed: timestamp,
     });
   } catch (error) {
-    res.status(500).json({ error: 'Fehler beim Generieren des API-Keys', details: error.message });
+    const errorMessage = result.error({
+      docs: registerRouteDocs.root,
+      error: 'Failed to generate API key',
+      details: error.message
+    });
+    res.status(500).json(errorMessage);
   }
 });
 

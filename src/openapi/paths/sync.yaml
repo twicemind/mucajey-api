@@ -1,0 +1,39 @@
+paths:
+  /{filename}/spotify-sync:
+    post:
+      summary: Spotify Playlist Sync
+      description: Spotify Playlist Sync
+      tags:
+        - Sync
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '500':
+          description: Internal Server Error
+  /{filename}/itunes-sync:
+    post:
+      summary: iTunes Sync
+      description: iTunes Sync
+      tags:
+        - Sync
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '500':
+          description: Internal Server Error
