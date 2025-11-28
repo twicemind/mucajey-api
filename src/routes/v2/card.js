@@ -1,9 +1,13 @@
 const express = require('express');
 const path = require('path');
+const axios = require('axios');
+const config = require('../../config');
 const result = require('../../utils/result');
 const e = require('express');
 
 const router = express.Router();
+
+const APPLE_API_BASE = 'https://api.music.apple.com/v1/catalog';
 
 router.get('/', async (req, res) => {
   const doc = result.documentation({
@@ -219,6 +223,102 @@ router.post('/', async (req, res) => {
   });
 
   res.status(201).json(message);
+});
+
+router.post('/:edition/:id/apple/search', async (req, res) => {
+  const { edition, id } = req.params;
+  const storefront = req.query.storefront || config.APPLE_MUSIC_STORE;
+
+  const doc = result.documentation({
+    method: 'POST',
+    path: '/card/:edition/:id/apple/search',
+    description: 'Run an Apple Music search for the requested card and persist the ID+URI.'
+  });
+
+  if (!config.APPLE_MUSIC_API_TOKEN) {
+    return res.status(500).json(result.error({
+      docs: doc,
+      error: 'Apple Music token is not configured'
+    }));
+  }
+
+  const cards = req.dataCache.listAllCards();
+  const card = cards.find(c => c.edition === edition && c.id === id);
+
+  if (!card) {
+    return res.status(404).json(result.error({
+      docs: doc,
+      error: 'Card not found'
+    }));
+  }
+
+  const searchParts = [card.title, card.artist, card.year].filter(Boolean);
+
+  if (!searchParts.length) {
+    return res.status(400).json(result.error({
+      docs: doc,
+      error: 'Card missing searchable metadata'
+    }));
+  }
+
+  const searchTerm = searchParts.join(' ');
+
+  try {
+    const response = await axios.get(`${APPLE_API_BASE}/${storefront}/search`, {
+      params: {
+        term: searchTerm,
+        types: 'songs',
+        limit: 1
+      },
+      headers: {
+        Authorization: `Bearer ${config.APPLE_MUSIC_API_TOKEN}`
+      }
+    });
+
+    const songs = response.data?.results?.songs?.data || [];
+
+    if (!songs.length) {
+      return res.status(404).json(result.error({
+        docs: doc,
+        error: 'No Apple Music match found'
+      }));
+    }
+
+    const track = songs[0];
+    const uri = track.attributes?.url || track.attributes?.previews?.[0]?.url || track.href;
+    const appleInfo = {
+      id: track.id,
+      uri
+    };
+
+    const filename = card.edition_file;
+    const fileData = req.dataCache.readFile(filename);
+    const targetCard = fileData.cards.find(c => c.id === id);
+
+    if (!targetCard) {
+      return res.status(404).json(result.error({
+        docs: doc,
+        error: 'Card data could not be loaded'
+      }));
+    }
+
+    targetCard.apple = appleInfo;
+
+    await req.dataCache.writeFile(filename, fileData);
+
+    res.json(result.message({
+      docs: doc,
+      message: 'Apple Music metadata mapped to card',
+      data: { card: targetCard, apple: appleInfo }
+    }));
+  } catch (err) {
+    console.error('Apple Music lookup failed:', err.message);
+    res.status(502).json(result.error({
+      docs: doc,
+      error: 'Apple Music lookup failed',
+      details: err.message
+    }));
+  }
 });
 
 router.patch('/:edition/:id', async (req, res) => {

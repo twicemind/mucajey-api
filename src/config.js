@@ -15,5 +15,7 @@ module.exports = {
   MASTER_API_KEY: process.env.API_KEY || 'mucajey-dev-key-2024',
   SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID || '',
   SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET || '',
-  CORS_ORIGINS: cleanList(process.env.CORS_ORIGINS || 'http://localhost:3000')
+  CORS_ORIGINS: cleanList(process.env.CORS_ORIGINS || 'http://localhost:3000'),
+  APPLE_MUSIC_API_TOKEN: process.env.APPLE_MUSIC_API_TOKEN || '',
+  APPLE_MUSIC_STORE: process.env.APPLE_MUSIC_STORE || 'de'
 };

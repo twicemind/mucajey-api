@@ -28,3 +28,6 @@ Thumbs.db
 
 # Docker
 .dockerignore
+
+generate_token.js
+AuthKey.p8

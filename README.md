@@ -43,6 +43,8 @@ API_KEY=dein-sicherer-api-key-hier
 
 **Wichtig:** Ändere den API-Key für Production zu einem sicheren, zufälligen String!
 
+Zusätzlich benötigt das Backend einen gültigen Apple Music Developer Token als `APPLE_MUSIC_API_TOKEN`. Setze optional `APPLE_MUSIC_STORE` (Default `de`), um einen anderen Storefront zu nutzen.
+
 ## Server starten
 
 ### Mit Node.js
@@ -756,6 +758,30 @@ curl -X PATCH http://localhost:3000/api/cards/apple/batch \
       { "edition": "hitster-de", "cardId": "00123", "file": "hitster-de.json" }
     ],
     "failed": []
+  }
+}
+```
+
+---
+
+### Apple Music Mapping per Card
+```
+POST /card/:edition/:id/apple/search
+```
+Startet eine Apple Music-Suche (Standard-Storefront: `de`) für die Karte und schreibt `apple.id` sowie `apple.uri` direkt zurück. Nutze den Developer Token (`APPLE_MUSIC_API_TOKEN`) im Backend.
+
+**Query-Parameter (optional):** `storefront` (z.B. `de`, `us`)
+
+**Response (neue Apple-Daten):**
+```json
+{
+  "message": "Apple Music metadata mapped to card",
+  "data": {
+    "card": { ... },
+    "apple": {
+      "id": "203123456",
+      "uri": "https://music.apple.com/de/album/..."
+    }
   }
 }
 ```
