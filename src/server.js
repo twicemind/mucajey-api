@@ -16,6 +16,7 @@ const cardRoutes = require('./routes/v2/card');
 const editionRoutes = require('./routes/v2/edition');
 const statsRoutes = require('./routes/v2/stats');
 const registerRoutes = require('./routes/register');
+const appleRoutes = require('./routes/apple');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
 
@@ -56,6 +57,7 @@ app.use((req, res, next) => {
 
 // Routes (ohne Auth)
 app.use('/', healthRoutes);
+app.use('/apple', appleRoutes);
 app.use('/register', registerRoutes);
 
 // Routes (mit Auth)

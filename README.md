@@ -214,6 +214,49 @@ curl -X POST http://localhost:3000/api/register \
 
 ---
 
+### Sign in with Apple (API-Key erstellen/abrufen)
+```
+POST /apple/login
+```
+Erstellt oder gibt einen API-Key frei, wenn sich eine App mit Sign in with Apple anmeldet. Die Route speichert die Apple User ID zusammen mit dem Device, damit wiederkehrende Logins den selben API-Key zurückliefern.
+
+**Request Body:**
+```json
+{
+  "appleUserId": "000123.abc.def",
+  "deviceId": "unique-device-id",
+  "appName": "mucajey iOS",
+  "appVersion": "1.2.0",
+  "platform": "iOS"
+}
+```
+
+**Response (neuer Key):**
+```json
+{
+  "message": "API key created via Apple login",
+  "apiKey": "abc123...",
+  "appName": "mucajey iOS",
+  "deviceId": "unique-device-id",
+  "appleUserId": "000123.abc.def",
+  "status": "created"
+}
+```
+
+**Response (bestehender Key):**
+```json
+{
+  "message": "API key already registered for this Apple user",
+  "apiKey": "abc123...",
+  "appName": "mucajey iOS",
+  "deviceId": "unique-device-id",
+  "appleUserId": "000123.abc.def",
+  "status": "existing"
+}
+```
+
+---
+
 ### Alle verfügbaren Dateien
 ```
 GET /api/files
