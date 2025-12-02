@@ -25,10 +25,13 @@ router.get('/', async (req, res) => {
 
 router.get('/all', async (req, res) => {
   const doc = result.documentation({
-    method: 'GET', 
-    path: '/card/all', 
-    description: 'Returns every card aggregated from the JSON files currently cached in memory. - openapi gen -'});
-  const data = req.dataCache.listAllCards();
+    method: 'GET',
+    path: '/card/all',
+    description: 'Returns every card aggregated from the JSON files currently cached in memory. - openapi gen -'
+  });
+
+  const data = await req.dataCache.listAllCards(); // ⬅️ async
+
   const message = result.message({
     docs: doc,
     message: 'All cards returned from cache.',
@@ -41,13 +44,15 @@ router.get('/id/:edition/:id', async (req, res) => {
   const { edition, id } = req.params;
 
   const doc = result.documentation({
-    method: 'GET', 
-    path: '/card/id/:edition/:id', 
-    description: 'Retrieve the card that belongs to a specific edition and identifier.'});  
-  const cards = req.dataCache.listAllCards();
+    method: 'GET',
+    path: '/card/id/:edition/:id',
+    description: 'Retrieve the card that belongs to a specific edition and identifier.'
+  });
+
+  const cards = await req.dataCache.listAllCards(); // ⬅️ async
   const editionCards = cards.filter(card => card.edition === edition);
   const data = editionCards.find(c => c.id === id);
-  
+
   if (data) {
     const message = result.message({
       docs: doc,
@@ -74,7 +79,7 @@ router.get('/title/:title', async (req, res) => {
     description: 'List all cards whose title exactly matches the requested value.'
   });
 
-  const cards = req.dataCache.listAllCards();
+  const cards = await req.dataCache.listAllCards(); // ⬅️ async
   const data = cards.filter(card => card.title === title);
   const message = result.message({
     docs: doc,
@@ -93,7 +98,7 @@ router.get('/artist/:artist', async (req, res) => {
     description: 'List all cards whose artist exactly matches the requested value.'
   });
 
-  const cards = req.dataCache.listAllCards();
+  const cards = await req.dataCache.listAllCards(); // ⬅️ async
   const data = cards.filter(card => card.artist === artist);
   const message = result.message({
     docs: doc,
@@ -105,12 +110,14 @@ router.get('/artist/:artist', async (req, res) => {
 
 router.get('/year/:year', async (req, res) => {
   const year = req.params.year;
+
   const doc = result.documentation({
     method: 'GET',
     path: '/card/year/:year',
     description: 'List all cards from the specified year.'
   });
-  const cards = req.dataCache.listAllCards();
+
+  const cards = await req.dataCache.listAllCards(); // ⬅️ async
   const data = cards.filter(card => card.year === year);
   const message = result.message({
     docs: doc,
@@ -122,12 +129,14 @@ router.get('/year/:year', async (req, res) => {
 
 router.get('/edition/:edition', async (req, res) => {
   const edition = req.params.edition;
+
   const doc = result.documentation({
     method: 'GET',
     path: '/card/edition/:edition',
     description: 'List all cards from the specified edition.'
   });
-  const cards = req.dataCache.listAllCards();
+
+  const cards = await req.dataCache.listAllCards(); // ⬅️ async
   const data = cards.filter(card => card.edition === edition);
   const message = result.message({
     docs: doc,
@@ -139,12 +148,14 @@ router.get('/edition/:edition', async (req, res) => {
 
 router.get('/genre/:genre', async (req, res) => {
   const genre = req.params.genre;
+
   const doc = result.documentation({
     method: 'GET',
     path: '/card/genre/:genre',
     description: 'List all cards from the specified genre.'
   });
-  const cards = req.dataCache.listAllCards();
+
+  const cards = await req.dataCache.listAllCards(); // ⬅️ async
   const data = cards.filter(card => card.genre === genre);
   const message = result.message({
     docs: doc,
@@ -156,17 +167,21 @@ router.get('/genre/:genre', async (req, res) => {
 
 router.get('/search/:query', async (req, res) => {
   const query = req.params.query;
+
   const doc = result.documentation({
     method: 'GET',
     path: '/card/search/:query',
     description: 'Search for cards matching the query string.'
   });
-  const cards = req.dataCache.listAllCards();
+
+  const cards = await req.dataCache.listAllCards(); // ⬅️ async
   const searchResults = cards.filter(card =>
     Object.values(card).some(value =>
-      typeof value === 'string' && value.toLowerCase().includes(query.toLowerCase())
+      typeof value === 'string' &&
+      value.toLowerCase().includes(query.toLowerCase())
     )
   );
+
   const message = result.message({
     docs: doc,
     message: `Search results for query "${query}" returned.`,
@@ -200,7 +215,11 @@ router.post('/', async (req, res) => {
   }
 
   const targetFile = edition_file || `hitster-${edition}.json`;
-  const fileData = req.dataCache.readFile(targetFile) || { cards: [] };
+
+  // ⬅️ async: Edition-Daten laden
+  const fileData = (await req.dataCache.readFile(targetFile)) || { cards: [] };
+
+  fileData.cards = Array.isArray(fileData.cards) ? fileData.cards : [];
 
   fileData.cards.push({
     edition_file: targetFile,
@@ -242,7 +261,7 @@ router.post('/:edition/:id/apple/search', async (req, res) => {
     }));
   }
 
-  const cards = req.dataCache.listAllCards();
+  const cards = await req.dataCache.listAllCards(); // ⬅️ async
   const card = cards.find(c => c.edition === edition && c.id === id);
 
   if (!card) {
@@ -285,14 +304,26 @@ router.post('/:edition/:id/apple/search', async (req, res) => {
     }
 
     const track = songs[0];
-    const uri = track.attributes?.url || track.attributes?.previews?.[0]?.url || track.href;
+    const uri =
+      track.attributes?.url ||
+      track.attributes?.previews?.[0]?.url ||
+      track.href;
+
     const appleInfo = {
       id: track.id,
       uri
     };
 
     const filename = card.edition_file;
-    const fileData = req.dataCache.readFile(filename);
+    const fileData = await req.dataCache.readFile(filename); // ⬅️ async
+
+    if (!fileData || !Array.isArray(fileData.cards)) {
+      return res.status(404).json(result.error({
+        docs: doc,
+        error: 'Card data could not be loaded'
+      }));
+    }
+
     const targetCard = fileData.cards.find(c => c.id === id);
 
     if (!targetCard) {
@@ -323,12 +354,14 @@ router.post('/:edition/:id/apple/search', async (req, res) => {
 
 router.patch('/:edition/:id', async (req, res) => {
   const { edition, id } = req.params;
+
   const doc = result.documentation({
     method: 'PATCH',
     path: '/card/:edition/:id',
     description: 'Update a card by edition and id.'
   });
-  const cards = req.dataCache.listAllCards();
+
+  const cards = await req.dataCache.listAllCards(); // ⬅️ async
   const card = cards.find(c => c.edition === edition && c.id === id);
 
   if (!card) {
@@ -340,8 +373,26 @@ router.patch('/:edition/:id', async (req, res) => {
   }
 
   const filename = card.edition_file;
-  const fileData = req.dataCache.readFile(filename);
+  const fileData = await req.dataCache.readFile(filename); // ⬅️ async
+
+  if (!fileData || !Array.isArray(fileData.cards)) {
+    const errorMessage = result.error({
+      docs: doc,
+      error: 'Karte nicht gefunden'
+    });
+    return res.status(404).json(errorMessage);
+  }
+
   const targetCard = fileData.cards.find(c => c.id === id);
+
+  if (!targetCard) {
+    const errorMessage = result.error({
+      docs: doc,
+      error: 'Karte nicht gefunden'
+    });
+    return res.status(404).json(errorMessage);
+  }
+
   Object.assign(targetCard, req.body);
 
   await req.dataCache.writeFile(filename, fileData);
@@ -357,13 +408,14 @@ router.patch('/:edition/:id', async (req, res) => {
 
 router.delete('/:edition/:id', async (req, res) => {
   const { edition, id } = req.params;
+
   const doc = result.documentation({
     method: 'DELETE',
     path: '/card/:edition/:id',
     description: 'Delete a card by edition and id.'
   });
 
-  const cards = req.dataCache.listAllCards();
+  const cards = await req.dataCache.listAllCards(); // ⬅️ async
   const card = cards.find(c => c.edition === edition && c.id === id);
 
   if (!card) {
@@ -375,11 +427,24 @@ router.delete('/:edition/:id', async (req, res) => {
   }
 
   const filename = card.edition_file;
-  const fileData = req.dataCache.readFile(filename);
+  const fileData = await req.dataCache.readFile(filename); // ⬅️ async
+
+  if (!fileData || !Array.isArray(fileData.cards)) {
+    const errorMessage = result.error({
+      docs: doc,
+      error: 'Karte nicht gefunden'
+    });
+    return res.status(404).json(errorMessage);
+  }
+
   const cardIndex = fileData.cards.findIndex(c => c.id === id);
 
   if (cardIndex === -1) {
-    return res.status(404).json({ error: 'Karte nicht gefunden' });
+    const errorMessage = result.error({
+      docs: doc,
+      error: 'Karte nicht gefunden'
+    });
+    return res.status(404).json(errorMessage);
   }
 
   fileData.cards.splice(cardIndex, 1);

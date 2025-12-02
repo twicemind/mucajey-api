@@ -153,6 +153,34 @@ paths:
           description: Created
         '400':
           description: Bad Request
+  /card/{edition}/{id}/apple/search:
+    post:
+      summary: Run an Apple Music search for the requested card and persist the ID+URI.
+      description: Run an Apple Music search for the requested card and persist the ID+URI.
+      tags:
+        - Card
+      parameters:
+        - name: edition
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+        '502':
+          description: Bad Gateway
   /card/{edition}/{id}:
     patch:
       summary: Update a card by edition and id.

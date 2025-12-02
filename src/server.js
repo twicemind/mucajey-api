@@ -1,8 +1,10 @@
 const path = require('path');
 const express = require('express');
 const config = require('./config');
+require('dotenv').config();
 const { loadApiKeys, authenticateApiKey } = require('./middleware/auth');
-const { initializeDataCache, dataCacheMiddleware, listCachedFiles } = require('./middleware/dataCache');
+//const { initializeDataCache, dataCacheMiddleware, listCachedFiles } = require('./middleware/dataCache');
+const { initializeDataCache, dataCacheMiddleware, listCachedFiles } = require('./middleware/mongoDataCache');
 
 // Routes importieren
 const healthRoutes = require('./routes/health');
@@ -75,13 +77,17 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 // Server starten
 async function startServer() {
   await initializeDataCache();
-  const cachedFiles = listCachedFiles();
-  console.log(`🗂️  Cache-Status: ${cachedFiles.length} JSON-Datei(en) geladen${cachedFiles.length ? ` (${cachedFiles.join(', ')})` : ''}`);
+  const cachedFiles = await listCachedFiles();
+  console.log(
+    `🗂️  Cache-Status: ${cachedFiles.length} Edition(en) in MongoDB${
+      cachedFiles.length ? ` (${cachedFiles.join(', ')})` : ''
+    }`
+  );
 
-  app.listen(config.PORT, async () => {
+  app.listen(process.env.PORT || config.PORT || 3000, async () => {
     await loadApiKeys();
 
-    console.log(`🚀 Server läuft auf http://localhost:${config.PORT}`);
+    console.log(`🚀 Server läuft auf http://localhost:${process.env.PORT || config.PORT || 3000}`);
     console.log(`📁 Daten-Verzeichnis: ${config.DATA_DIR}`);
     console.log(`📝 Import-Datei: ${config.IMPORT_FILE}`);
     console.log(`🔑 API-Keys Verzeichnis: ${config.API_KEYS_DIR}`);
