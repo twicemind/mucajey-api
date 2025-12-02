@@ -1,5 +1,6 @@
 // src/config/mongoClients.js
 const { MongoClient } = require('mongodb');
+require('dotenv').config();
 
 function buildUri({ host, user, pass, authSource }) {
   if (!host || !user || !pass) {
