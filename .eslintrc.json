@@ -1,0 +1,38 @@
+{
+  "root": true,
+  "env": {
+    "es2021": true,
+    "node": true
+  },
+  "extends": ["eslint:recommended"],
+  "parserOptions": {
+    "ecmaVersion": 2021,
+    "sourceType": "script"
+  },
+  "overrides": [
+    {
+      "files": ["src/test/**/*", "src/**/*.test.js"],
+      "env": {
+        "node": true
+      }
+    },
+    {
+      "files": ["scripts/apple/**/*.js"],
+      "parserOptions": {
+        "sourceType": "module"
+      }
+    },
+    {
+      "files": ["scripts/**/*.mjs"],
+      "parserOptions": {
+        "sourceType": "module"
+      }
+    },
+    {
+      "files": ["**/*.mjs"],
+      "parserOptions": {
+        "sourceType": "module"
+      }
+    }
+  ]
+}

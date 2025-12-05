@@ -1,0 +1,59 @@
+{
+  "failed_searches": [
+    {
+      "json_file": "hitster-de-aaaa0007.json",
+      "card_id": "00002",
+      "artist": "Achim Reichel",
+      "title": "Aloha Heja He",
+      "year": "1991",
+      "reason": "Keine iTunes-Suche Ergebnisse",
+      "timestamp": "2025-11-15 16:11:11"
+    },
+    {
+      "json_file": "hitster-de-aaaa0007.json",
+      "card_id": "00005",
+      "artist": "Vader Abraham",
+      "title": "Das Lied der Schlümpfe",
+      "year": "1977",
+      "reason": "Keine iTunes-Suche Ergebnisse",
+      "timestamp": "2025-11-15 16:11:49"
+    },
+    {
+      "json_file": "hitster-de-aaaa0007.json",
+      "card_id": "00007",
+      "artist": "Die Kolibris",
+      "title": "Die Hände Zum Himmel",
+      "year": "1998",
+      "reason": "Keine iTunes-Suche Ergebnisse",
+      "timestamp": "2025-11-15 16:12:35"
+    },
+    {
+      "json_file": "hitster-de-aaaa0007.json",
+      "card_id": "00009",
+      "artist": "Liane",
+      "title": "Ich lass' nur noch Sonne in mein Herz",
+      "year": "2014",
+      "reason": "Keine iTunes-Suche Ergebnisse",
+      "timestamp": "2025-11-15 16:13:11"
+    },
+    {
+      "json_file": "hitster-de-aaaa0007.json",
+      "card_id": "00010",
+      "artist": "Demis Roussos",
+      "title": "Schönes Madchen aus Arcadia",
+      "year": "1973",
+      "reason": "Keine iTunes-Suche Ergebnisse",
+      "timestamp": "2025-11-15 16:13:45"
+    },
+    {
+      "json_file": "hitster-de.json",
+      "card_id": "00307",
+      "artist": "Sam The Sham & The Pharaohs",
+      "title": "Wooly Bully",
+      "year": "1965",
+      "reason": "Keine iTunes-Suche Ergebnisse",
+      "timestamp": "2025-11-15 16:19:19"
+    }
+  ],
+  "updated": "2025-11-15 16:19:19"
+}

@@ -1,0 +1,124 @@
+openapi: 3.1.0
+info:
+  title: 'mucajey Card API'
+  version: 2.0.3
+servers:
+  -
+    url: 'http://localhost:3000'
+    description: 'Local development server'
+  -
+    url: 'https://api.mucajey.twicemind.com'
+    description: 'Production server'
+paths:
+  /stats:
+    get:
+      summary: 'Collects aggregated statistics about cached editions and cards.'
+      description: 'Collects aggregated statistics about cached editions and cards.'
+      tags: [Stats]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}}
+  /api/register:
+    post:
+      summary: 'Issue or return an API key tied to the provided application details.'
+      description: 'Issue or return an API key tied to the provided application details.'
+      tags: [Register]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}, '201': {description: Created}, '400': {description: 'Bad Request'}, '500': {description: 'Internal Server Error'}}
+  /health:
+    get:
+      summary: 'Health check endpoint to verify if the API is running.'
+      description: 'Health check endpoint to verify if the API is running.'
+      tags: [Health]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}}
+  /card/:
+    get:
+      summary: 'Learn how to interact with the card collection support endpoints. Includes authentication reminder.'
+      description: 'Learn how to interact with the card collection support endpoints. Includes authentication reminder.'
+      tags: [Card]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}}
+  /card/all:
+    get:
+      summary: 'Returns every card aggregated from the JSON files currently cached in memory. - openapi gen -'
+      description: 'Returns every card aggregated from the JSON files currently cached in memory. - openapi gen -'
+      tags: [Card]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}}
+  '/card/id/{edition}/{id}':
+    get:
+      summary: 'Retrieve the card that belongs to a specific edition and identifier.'
+      description: 'Retrieve the card that belongs to a specific edition and identifier.'
+      tags: [Card]
+      parameters: [{name: edition, in: path, required: true, schema: {type: string}}, {name: id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}, '404': {description: 'Not Found'}}
+  '/card/title/{title}':
+    get:
+      summary: 'List all cards whose title exactly matches the requested value.'
+      description: 'List all cards whose title exactly matches the requested value.'
+      tags: [Card]
+      parameters: [{name: title, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}}
+  '/card/artist/{artist}':
+    get:
+      summary: 'List all cards whose artist exactly matches the requested value.'
+      description: 'List all cards whose artist exactly matches the requested value.'
+      tags: [Card]
+      parameters: [{name: artist, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}}
+  '/card/year/{year}':
+    get:
+      summary: 'List all cards from the specified year.'
+      description: 'List all cards from the specified year.'
+      tags: [Card]
+      parameters: [{name: year, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}}
+  '/card/edition/{edition}':
+    get:
+      summary: 'List all cards from the specified edition.'
+      description: 'List all cards from the specified edition.'
+      tags: [Card]
+      parameters: [{name: edition, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}}
+  '/card/genre/{genre}':
+    get:
+      summary: 'List all cards from the specified genre.'
+      description: 'List all cards from the specified genre.'
+      tags: [Card]
+      parameters: [{name: genre, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}}
+  '/card/search/{query}':
+    get:
+      summary: 'Search for cards matching the query string.'
+      description: 'Search for cards matching the query string.'
+      tags: [Card]
+      parameters: [{name: query, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}}
+  /card:
+    post:
+      summary: 'Create a new card.'
+      description: 'Create a new card.'
+      tags: [Card]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}, '201': {description: Created}, '400': {description: 'Bad Request'}}
+  '/card/{edition}/{id}/apple/search':
+    post:
+      summary: 'Run an Apple Music search for the requested card and persist the ID+URI.'
+      description: 'Run an Apple Music search for the requested card and persist the ID+URI.'
+      tags: [Card]
+      parameters: [{name: edition, in: path, required: true, schema: {type: string}}, {name: id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}, '400': {description: 'Bad Request'}, '404': {description: 'Not Found'}, '500': {description: 'Internal Server Error'}, '502': {description: 'Bad Gateway'}}
+  '/card/{edition}/{id}':
+    patch:
+      summary: 'Update a card by edition and id.'
+      description: 'Update a card by edition and id.'
+      tags: [Card]
+      parameters: [{name: edition, in: path, required: true, schema: {type: string}}, {name: id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}, '404': {description: 'Not Found'}}
+    delete:
+      summary: 'Delete a card by edition and id.'
+      description: 'Delete a card by edition and id.'
+      tags: [Card]
+      parameters: [{name: edition, in: path, required: true, schema: {type: string}}, {name: id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}, '404': {description: 'Not Found'}}
+components: {}

@@ -1,0 +1,59 @@
+{
+  "name": "mucajey-api",
+  "version": "2.0.3",
+  "description": "Node.js api rest backend server for mucajey",
+  "main": "src/server/server.js",
+  "scripts": {
+    "openapi:gen": "node scripts/openapi/generate-openapi-from-routes.mjs",
+    "openapi:bundle": "node scripts/openapi/build-openapi-bundle.mjs",
+    "openapi:build": "npm run openapi:gen && npm run openapi:bundle",
+    "start": "node ./src/server/server.js",
+    "openapi:bump-version": "node scripts/openapi/bump-base-version.mjs",
+    "release": "standard-version --skip.commit --skip.tag && npm run openapi:bump-version",
+    "dev": "nodemon ./src/server/server.js",
+    "test:jest": "jest --runInBand",
+    "lint": "eslint \"src/**/*.{js,mjs}\" \"scripts/**/*.{js,mjs}\"",
+    "test:deps": "npm audit && npm outdated",
+    "test": "npm run lint && npm run test:jest -- --coverage && npm run test:deps",
+    "licence": "license-checker --summary --markdown > LICENSES.md",
+    "prettier": "npx prettier . --write",
+    "sbom": "npm sbom --sbom-format cyclonedx > sbom.json",
+    "push:prep": "npm run prettier && npm run test && npm run release && npm run openapi:build && npm run licence && npm run sbom"
+  },
+  "keywords": [
+    "mucajey",
+    "music",
+    "api"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@babel/parser": "^7.23.3",
+    "@babel/traverse": "^7.23.1",
+    "axios": "^1.6.0",
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "express-session": "^1.18.2",
+    "glob": "^13.0.0",
+    "mongodb": "^7.0.0",
+    "passport": "^0.7.0",
+    "passport-headerapikey": "^1.2.2",
+    "passport-local": "^1.0.0",
+    "swagger-ui-express": "^5.0.0",
+    "yamljs": "^0.3.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.2.1",
+    "globals": "^16.5.0",
+    "jest": "^30.2.0",
+    "nodemon": "^3.0.1",
+    "prettier": "^3.3.3",
+    "prettier-eslint": "^16.3.0",
+    "standard-version": "^9.5.0",
+    "supertest": "^7.1.4"
+  }
+}
