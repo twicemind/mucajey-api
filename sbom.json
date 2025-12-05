@@ -5,7 +5,7 @@
   "serialNumber": "urn:uuid:***",
   "version": 1,
   "metadata": {
-    "timestamp": "2025-12-05T13:38:05.132Z",
+    "timestamp": "2025-12-05T22:15:46.401Z",
     "lifecycles": [
       {
         "phase": "build"
@@ -19,13 +19,13 @@
       }
     ],
     "component": {
-      "bom-ref": "mucajey-api@2.0.3",
+      "bom-ref": "mucajey-api@2.0.4",
       "type": "library",
       "name": "mucajey-api",
-      "version": "2.0.3",
+      "version": "2.0.4",
       "scope": "required",
       "description": "Node.js api rest backend server for mucajey",
-      "purl": "pkg:npm/mucajey-api@2.0.3",
+      "purl": "pkg:npm/mucajey-api@2.0.4",
       "properties": [],
       "externalReferences": [],
       "licenses": [
@@ -25794,7 +25794,7 @@
   ],
   "dependencies": [
     {
-      "ref": "mucajey-api@2.0.3",
+      "ref": "mucajey-api@2.0.4",
       "dependsOn": [
         "@babel/parser@7.28.5",
         "@babel/traverse@7.28.5",

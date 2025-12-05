@@ -458,7 +458,7 @@
 [mongodb@7.0.0](https://github.com/mongodb/node-mongodb-native) - Apache-2.0
 [ms@2.0.0](https://github.com/zeit/ms) - MIT
 [ms@2.1.3](https://github.com/vercel/ms) - MIT
-[mucajey-api@2.0.3](undefined) - ISC
+[mucajey-api@2.0.4](undefined) - ISC
 [napi-postinstall@0.3.4](https://github.com/un-ts/napi-postinstall) - MIT
 [natural-compare@1.4.0](https://github.com/litejs/natural-compare-lite) - MIT
 [negotiator@1.0.0](https://github.com/jshttp/negotiator) - MIT

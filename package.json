@@ -1,6 +1,6 @@
 {
   "name": "mucajey-api",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Node.js api rest backend server for mucajey",
   "main": "src/server/server.js",
   "scripts": {
