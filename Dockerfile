@@ -1,20 +1,21 @@
-FROM node:25-alpine3.21 AS dependencies
+FROM node:25-alpine3.22 AS dependencies
 WORKDIR /app
 
 # Install only production dependencies with lockfile fidelity
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-FROM node:25-alpine3.21 AS openapi
+FROM node:25-alpine3.22 AS openapi
 WORKDIR /app
 
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY package*.json ./
 COPY scripts/openapi/ ./scripts/openapi/
 COPY src/server/routes ./src/server/routes
+COPY docs/openapi/base.yaml ./docs/openapi/base.yaml
 RUN npm run openapi:build
 
-FROM node:25-alpine3.21 AS runner
+FROM node:25-alpine3.22 AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production \
