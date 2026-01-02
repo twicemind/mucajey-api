@@ -1,8 +1,5 @@
 // src/middleware/mongoEditionCache.js
-const path = require('path');
 const { getMucajeyDataDb } = require('../../utils/client.mongo');
-
-const JSON_EXTENSION = '.json';
 
 let db;
 let Edition;
@@ -18,81 +15,99 @@ function deepCopy(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
-function sanitizeFilename(filename) {
-  if (!filename) throw new Error('Dateiname ist erforderlich');
-  return path.basename(filename);
-}
+function normalizeEdition(doc, edition_id) {
+  if (!doc) return null;
 
-function getEditionIdentifierFromFilename(filename) {
-  const sanitized = sanitizeFilename(filename);
-  return path.basename(sanitized, JSON_EXTENSION);
-}
+  const { _id: omittedId, ...rest } = doc;
+  void omittedId;
 
-/* ---- Edition: Liste ---- */
-async function listEditions() {
-  await initEditionCollection();
-  const editions = await Edition.find(
-    {},
-    { projection: { edition: 1, _id: 0 } }
-  ).toArray();
-  return editions
-    .filter(e => !!e.edition)
-    .map(e => `${e.edition}${JSON_EXTENSION}`);
-}
+  const id =
+    (typeof rest.edition_id === 'string' && rest.edition_id.trim()) ||
+    (typeof rest.edition === 'string' && rest.edition.trim()) ||
+    edition_id;
 
-/* ---- Edition: Read ---- */
-async function readEdition(filename) {
-  await initEditionCollection();
-  const editionId = getEditionIdentifierFromFilename(filename);
-
-  const editionDoc = await Edition.findOne({ edition: editionId });
-
-  if (!editionDoc) return null;
-
-  const { _id: omittedId, ...rest } = editionDoc;
-  void omittedId; // omit MongoDB internal id
+  const name =
+    (typeof rest.edition_name === 'string' && rest.edition_name.trim()) ||
+    (typeof rest.edition === 'string' && rest.edition.trim()) ||
+    id;
 
   return deepCopy({
     ...rest,
-    edition: rest.edition_name || rest.edition || editionId,
+    edition_id: id,
+    edition: id, // alias
+    edition_name: name,
   });
 }
 
-/* ---- Edition: Write ---- */
-async function writeEdition(filename, payload) {
+function editionFilter(edition_id) {
+  return { $or: [{ edition_id }, { edition: edition_id }] };
+}
+
+/* ---- Edition: List ---- */
+async function listEditions() {
   await initEditionCollection();
 
-  const editionId = getEditionIdentifierFromFilename(filename);
-  const editionName = payload?.edition || editionId;
+  // project both to be migration-safe
+  const editions = await Edition.find(
+    {},
+    { projection: { edition_id: 1, edition: 1, _id: 0 } }
+  ).toArray();
+
+  return editions
+    .map(e => e.edition_id || e.edition)
+    .filter(Boolean)
+    .map(String);
+}
+
+/* ---- Edition: Read ---- */
+async function readEdition(edition_id) {
+  await initEditionCollection();
+
+  const edition = await Edition.findOne(editionFilter(edition_id));
+  return normalizeEdition(edition, edition_id);
+}
+
+/* ---- Edition: Write / Upsert ---- */
+async function writeEdition(edition_id, payload) {
+  await initEditionCollection();
+
+  const id = edition_id;
+  const editionName =
+    (payload && (payload.edition_name || payload.edition)) || id;
+
+  // Ensure invariant fields always present
+  const toSet = {
+    edition_id: id,
+    edition: id, // alias
+    edition_name: editionName,
+    ...(payload || {}),
+  };
+
+  // If someone passes edition/edition_id in payload, enforce canonical
+  toSet.edition_id = id;
+  toSet.edition = id;
 
   await Edition.updateOne(
-    { edition: editionId },
-    {
-      $set: {
-        edition: editionId,
-        edition_name: editionName,
-        ...payload,
-      },
-    },
+    { edition_id: id },
+    { $set: toSet },
     { upsert: true }
   );
 
-  return readEdition(filename);
+  return readEdition(id);
 }
 
 /* ---- Edition: Delete ---- */
-async function deleteEdition(filename) {
+async function deleteEdition(edition_id) {
   await initEditionCollection();
-  const editionId = getEditionIdentifierFromFilename(filename);
-  await Edition.deleteOne({ edition: editionId });
+  await Edition.deleteOne(editionFilter(edition_id));
 }
 
-function editionCacheMiddleware(req, res, next) {
+function editionCacheMiddleware(req, _res, next) {
   req.editionsCache = {
     getAll: () => listEditions(),
-    get: editionId => readEdition(editionId),
-    write: (filename, payload) => writeEdition(filename, payload),
-    delete: filename => deleteEdition(filename),
+    get: edition_id => readEdition(edition_id),
+    write: (edition_id, payload) => writeEdition(edition_id, payload),
+    delete: edition_id => deleteEdition(edition_id),
   };
   next();
 }

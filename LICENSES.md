@@ -33,7 +33,7 @@
 [@babel/traverse@7.28.5](https://github.com/babel/babel) - MIT
 [@babel/types@7.28.5](https://github.com/babel/babel) - MIT
 [@bcoe/v8-coverage@0.2.3](https://github.com/demurgos/v8-coverage) - MIT
-[@eslint-community/eslint-utils@4.9.0](https://github.com/eslint-community/eslint-utils) - MIT
+[@eslint-community/eslint-utils@4.9.1](https://github.com/eslint-community/eslint-utils) - MIT
 [@eslint-community/regexpp@4.12.2](https://github.com/eslint-community/regexpp) - MIT
 [@eslint/config-array@0.21.1](https://github.com/eslint/rewrite) - Apache-2.0
 [@eslint/config-helpers@0.4.2](https://github.com/eslint/rewrite) - Apache-2.0
@@ -41,7 +41,7 @@
 [@eslint/eslintrc@2.1.4](https://github.com/eslint/eslintrc) - MIT
 [@eslint/eslintrc@3.3.3](https://github.com/eslint/eslintrc) - MIT
 [@eslint/js@8.57.1](https://github.com/eslint/eslint) - MIT
-[@eslint/js@9.39.1](https://github.com/eslint/eslint) - MIT
+[@eslint/js@9.39.2](https://github.com/eslint/eslint) - MIT
 [@eslint/object-schema@2.1.7](https://github.com/eslint/rewrite) - Apache-2.0
 [@eslint/plugin-kit@0.4.1](https://github.com/eslint/rewrite) - Apache-2.0
 [@humanfs/core@0.19.1](https://github.com/humanwhocodes/humanfs) - Apache-2.0
@@ -80,7 +80,7 @@
 [@jridgewell/resolve-uri@3.1.2](https://github.com/jridgewell/resolve-uri) - MIT
 [@jridgewell/sourcemap-codec@1.5.5](https://github.com/jridgewell/sourcemaps) - MIT
 [@jridgewell/trace-mapping@0.3.31](https://github.com/jridgewell/sourcemaps) - MIT
-[@mongodb-js/saslprep@1.3.2](https://github.com/mongodb-js/devtools-shared) - MIT
+[@mongodb-js/saslprep@1.4.4](https://github.com/mongodb-js/devtools-shared) - MIT
 [@noble/hashes@1.8.0](https://github.com/paulmillr/noble-hashes) - MIT
 [@nodelib/fs.scandir@2.1.5](https://github.com/nodelib/nodelib/tree/master/packages/fs/fs.scandir) - MIT
 [@nodelib/fs.stat@2.0.5](https://github.com/nodelib/nodelib/tree/master/packages/fs/fs.stat) - MIT
@@ -90,7 +90,7 @@
 [@pkgr/core@0.2.9](https://github.com/un-ts/pkgr) - MIT
 [@scarf/scarf@1.4.0](https://github.com/scarf-sh/scarf-js) - Apache-2.0
 [@sinclair/typebox@0.27.8](https://github.com/sinclairzx81/typebox) - MIT
-[@sinclair/typebox@0.34.41](https://github.com/sinclairzx81/typebox) - MIT
+[@sinclair/typebox@0.34.46](https://github.com/sinclairzx81/typebox-legacy) - MIT
 [@sinonjs/commons@3.0.1](https://github.com/sinonjs/commons) - BSD-3-Clause
 [@sinonjs/fake-timers@13.0.5](https://github.com/sinonjs/fake-timers) - BSD-3-Clause
 [@types/babel__core@7.20.5](https://github.com/DefinitelyTyped/DefinitelyTyped) - MIT
@@ -103,7 +103,7 @@
 [@types/istanbul-reports@3.0.4](https://github.com/DefinitelyTyped/DefinitelyTyped) - MIT
 [@types/json-schema@7.0.15](https://github.com/DefinitelyTyped/DefinitelyTyped) - MIT
 [@types/minimist@1.2.5](https://github.com/DefinitelyTyped/DefinitelyTyped) - MIT
-[@types/node@24.10.1](https://github.com/DefinitelyTyped/DefinitelyTyped) - MIT
+[@types/node@25.0.3](https://github.com/DefinitelyTyped/DefinitelyTyped) - MIT
 [@types/normalize-package-data@2.4.4](https://github.com/DefinitelyTyped/DefinitelyTyped) - MIT
 [@types/stack-utils@2.0.3](https://github.com/DefinitelyTyped/DefinitelyTyped) - MIT
 [@types/webidl-conversions@7.0.3](https://github.com/DefinitelyTyped/DefinitelyTyped) - MIT
@@ -147,7 +147,7 @@
 [babel-preset-current-node-syntax@1.2.0](https://github.com/nicolo-ribaudo/babel-preset-current-node-syntax) - MIT
 [babel-preset-jest@30.2.0](https://github.com/jestjs/jest) - MIT
 [balanced-match@1.0.2](https://github.com/juliangruber/balanced-match) - MIT
-[baseline-browser-mapping@2.9.2](https://github.com/web-platform-dx/baseline-browser-mapping) - Apache-2.0
+[baseline-browser-mapping@2.9.11](https://github.com/web-platform-dx/baseline-browser-mapping) - Apache-2.0
 [bcryptjs@3.0.3](https://github.com/dcodeIO/bcrypt.js) - BSD-3-Clause
 [binary-extensions@2.3.0](https://github.com/sindresorhus/binary-extensions) - MIT
 [body-parser@2.2.1](https://github.com/expressjs/body-parser) - MIT
@@ -165,7 +165,7 @@
 [camelcase-keys@6.2.2](https://github.com/sindresorhus/camelcase-keys) - MIT
 [camelcase@5.3.1](https://github.com/sindresorhus/camelcase) - MIT
 [camelcase@6.3.0](https://github.com/sindresorhus/camelcase) - MIT
-[caniuse-lite@1.0.30001759](https://github.com/browserslist/caniuse-lite) - CC-BY-4.0
+[caniuse-lite@1.0.30001762](https://github.com/browserslist/caniuse-lite) - CC-BY-4.0
 [chalk@1.1.3](https://github.com/chalk/chalk) - MIT
 [chalk@2.4.2](https://github.com/chalk/chalk) - MIT
 [chalk@4.1.2](https://github.com/chalk/chalk) - MIT
@@ -219,7 +219,7 @@
 [debug@4.4.3](https://github.com/debug-js/debug) - MIT
 [decamelize-keys@1.1.1](https://github.com/sindresorhus/decamelize-keys) - MIT
 [decamelize@1.2.0](https://github.com/sindresorhus/decamelize) - MIT
-[dedent@1.7.0](https://github.com/dmnd/dedent) - MIT
+[dedent@1.7.1](https://github.com/dmnd/dedent) - MIT
 [deep-is@0.1.4](https://github.com/thlorenz/deep-is) - MIT
 [deepmerge@4.3.1](https://github.com/TehShrike/deepmerge) - MIT
 [delayed-stream@1.0.0](https://github.com/felixge/node-delayed-stream) - MIT
@@ -236,7 +236,7 @@
 [dunder-proto@1.0.1](https://github.com/es-shims/dunder-proto) - MIT
 [eastasianwidth@0.2.0](https://github.com/komagata/eastasianwidth) - MIT
 [ee-first@1.1.1](https://github.com/jonathanong/ee-first) - MIT
-[electron-to-chromium@1.5.265](https://github.com/kilian/electron-to-chromium) - ISC
+[electron-to-chromium@1.5.267](https://github.com/kilian/electron-to-chromium) - ISC
 [emittery@0.13.1](https://github.com/sindresorhus/emittery) - MIT
 [emoji-regex@8.0.0](https://github.com/mathiasbynens/emoji-regex) - MIT
 [emoji-regex@9.2.2](https://github.com/mathiasbynens/emoji-regex) - MIT
@@ -258,11 +258,11 @@
 [eslint-visitor-keys@3.4.3](https://github.com/eslint/eslint-visitor-keys) - Apache-2.0
 [eslint-visitor-keys@4.2.1](https://github.com/eslint/js) - Apache-2.0
 [eslint@8.57.1](https://github.com/eslint/eslint) - MIT
-[eslint@9.39.1](https://github.com/eslint/eslint) - MIT
+[eslint@9.39.2](https://github.com/eslint/eslint) - MIT
 [espree@10.4.0](https://github.com/eslint/js) - BSD-2-Clause
 [espree@9.6.1](https://github.com/eslint/espree) - BSD-2-Clause
 [esprima@4.0.1](https://github.com/jquery/esprima) - BSD-2-Clause
-[esquery@1.6.0](https://github.com/estools/esquery) - BSD-3-Clause
+[esquery@1.7.0](https://github.com/estools/esquery) - BSD-3-Clause
 [esrecurse@4.3.0](https://github.com/estools/esrecurse) - BSD-2-Clause
 [estraverse@5.3.0](https://github.com/estools/estraverse) - BSD-2-Clause
 [esutils@2.0.3](https://github.com/estools/esutils) - BSD-2-Clause
@@ -278,7 +278,7 @@
 [fast-json-stable-stringify@2.1.0](https://github.com/epoberezkin/fast-json-stable-stringify) - MIT
 [fast-levenshtein@2.0.6](https://github.com/hiddentao/fast-levenshtein) - MIT
 [fast-safe-stringify@2.1.1](https://github.com/davidmarkclements/fast-safe-stringify) - MIT
-[fastq@1.19.1](https://github.com/mcollina/fastq) - ISC
+[fastq@1.20.1](https://github.com/mcollina/fastq) - ISC
 [fb-watchman@2.0.2](https://github.com/facebook/watchman) - Apache-2.0
 [figures@3.2.0](https://github.com/sindresorhus/figures) - MIT
 [file-entry-cache@6.0.1](https://github.com/royriojas/file-entry-cache) - MIT
@@ -299,7 +299,6 @@
 [forwarded@0.2.0](https://github.com/jshttp/forwarded) - MIT
 [fresh@2.0.0](https://github.com/jshttp/fresh) - MIT
 [fs.realpath@1.0.0](https://github.com/isaacs/fs.realpath) - ISC
-[fsevents@2.3.3](https://github.com/fsevents/fsevents) - MIT
 [function-bind@1.1.2](https://github.com/Raynos/function-bind) - MIT
 [gensync@1.0.0-beta.2](https://github.com/loganfsmyth/gensync) - MIT
 [get-caller-file@2.0.5](https://github.com/stefanpenner/get-caller-file) - ISC
@@ -319,7 +318,7 @@
 [glob@7.2.3](https://github.com/isaacs/node-glob) - ISC
 [globals@13.24.0](https://github.com/sindresorhus/globals) - MIT
 [globals@14.0.0](https://github.com/sindresorhus/globals) - MIT
-[globals@16.5.0](https://github.com/sindresorhus/globals) - MIT
+[globals@17.0.0](https://github.com/sindresorhus/globals) - MIT
 [globby@11.1.0](https://github.com/sindresorhus/globby) - MIT
 [gopd@1.2.0](https://github.com/ljharb/gopd) - MIT
 [graceful-fs@4.2.11](https://github.com/isaacs/node-graceful-fs) - ISC
@@ -337,7 +336,8 @@
 [html-escaper@2.0.2](https://github.com/WebReflection/html-escaper) - MIT
 [http-errors@2.0.1](https://github.com/jshttp/http-errors) - MIT
 [human-signals@2.1.0](https://github.com/ehmicky/human-signals) - Apache-2.0
-[iconv-lite@0.7.0](https://github.com/pillarjs/iconv-lite) - MIT
+[i@0.3.7](https://github.com/pksunkara/inflect) - MIT
+[iconv-lite@0.7.1](https://github.com/pillarjs/iconv-lite) - MIT
 [ignore-by-default@1.0.1](https://github.com/novemberborn/ignore-by-default) - ISC
 [ignore@5.3.2](https://github.com/kaelzhang/node-ignore) - MIT
 [import-fresh@3.3.1](https://github.com/sindresorhus/import-fresh) - MIT
@@ -458,7 +458,7 @@
 [mongodb@7.0.0](https://github.com/mongodb/node-mongodb-native) - Apache-2.0
 [ms@2.0.0](https://github.com/zeit/ms) - MIT
 [ms@2.1.3](https://github.com/vercel/ms) - MIT
-[mucajey-api@2.0.4](undefined) - ISC
+[mucajey-api@2.0.7](undefined) - ISC
 [napi-postinstall@0.3.4](https://github.com/un-ts/napi-postinstall) - MIT
 [natural-compare@1.4.0](https://github.com/litejs/natural-compare-lite) - MIT
 [negotiator@1.0.0](https://github.com/jshttp/negotiator) - MIT
@@ -514,7 +514,7 @@
 [pkg-dir@4.2.0](https://github.com/sindresorhus/pkg-dir) - MIT
 [prelude-ls@1.2.1](https://github.com/gkz/prelude-ls) - MIT
 [prettier-eslint@16.4.2](https://github.com/prettier/prettier-eslint) - MIT
-[prettier-linter-helpers@1.0.0](https://github.com/prettier/prettier-linter-helpers) - MIT
+[prettier-linter-helpers@1.0.1](https://github.com/prettier/prettier-linter-helpers) - MIT
 [prettier@3.7.4](https://github.com/prettier/prettier) - MIT
 [pretty-format@29.7.0](https://github.com/jestjs/jest) - MIT
 [pretty-format@30.2.0](https://github.com/jestjs/jest) - MIT
@@ -525,7 +525,7 @@
 [punycode@2.3.1](https://github.com/mathiasbynens/punycode.js) - MIT
 [pure-rand@7.0.1](https://github.com/dubzzz/pure-rand) - MIT
 [q@1.5.1](https://github.com/kriskowal/q) - MIT
-[qs@6.14.0](https://github.com/ljharb/qs) - BSD-3-Clause
+[qs@6.14.1](https://github.com/ljharb/qs) - BSD-3-Clause
 [queue-microtask@1.2.3](https://github.com/feross/queue-microtask) - MIT
 [quick-lru@4.0.1](https://github.com/sindresorhus/quick-lru) - MIT
 [random-bytes@1.0.0](https://github.com/crypto-utils/random-bytes) - MIT
@@ -556,8 +556,8 @@
 [semver@5.7.2](https://github.com/npm/node-semver) - ISC
 [semver@6.3.1](https://github.com/npm/node-semver) - ISC
 [semver@7.7.3](https://github.com/npm/node-semver) - ISC
-[send@1.2.0](https://github.com/pillarjs/send) - MIT
-[serve-static@2.2.0](https://github.com/expressjs/serve-static) - MIT
+[send@1.2.1](https://github.com/pillarjs/send) - MIT
+[serve-static@2.2.1](https://github.com/expressjs/serve-static) - MIT
 [setprototypeof@1.2.0](https://github.com/wesleytodd/setprototypeof) - ISC
 [shebang-command@2.0.0](https://github.com/kevva/shebang-command) - MIT
 [shebang-regex@3.0.0](https://github.com/sindresorhus/shebang-regex) - MIT
@@ -603,7 +603,7 @@
 [supports-color@7.2.0](https://github.com/chalk/supports-color) - MIT
 [supports-color@8.1.1](https://github.com/chalk/supports-color) - MIT
 [supports-preserve-symlinks-flag@1.0.0](https://github.com/inspect-js/node-supports-preserve-symlinks-flag) - MIT
-[swagger-ui-dist@5.30.3](https://github.com/swagger-api/swagger-ui) - Apache-2.0
+[swagger-ui-dist@5.31.0](https://github.com/swagger-api/swagger-ui) - Apache-2.0
 [swagger-ui-express@5.0.1](https://github.com/scottie1984/swagger-ui-express) - MIT
 [synckit@0.11.11](https://github.com/un-ts/synckit) - MIT
 [test-exclude@6.0.0](https://github.com/istanbuljs/test-exclude) - ISC
@@ -636,7 +636,7 @@
 [undici-types@7.16.0](https://github.com/nodejs/undici) - MIT
 [unpipe@1.0.0](https://github.com/stream-utils/unpipe) - MIT
 [unrs-resolver@1.11.1](https://github.com/unrs/unrs-resolver) - MIT
-[update-browserslist-db@1.2.2](https://github.com/browserslist/update-db) - MIT
+[update-browserslist-db@1.2.3](https://github.com/browserslist/update-db) - MIT
 [uri-js@4.4.1](https://github.com/garycourt/uri-js) - BSD-2-Clause
 [util-deprecate@1.0.2](https://github.com/TooTallNate/util-deprecate) - MIT
 [utils-merge@1.0.1](https://github.com/jaredhanson/utils-merge) - MIT

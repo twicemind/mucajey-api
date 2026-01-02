@@ -1,57 +1,31 @@
 const express = require('express');
-const path = require('path');
+const fs = require('fs');
 const {
   documentation: documentEndpoint,
   message: createMessage,
   error: createError,
 } = require('../../utils/result');
+const {
+  resolveEdition,
+  getBaseUrl,
+  getEditionImageFilename,
+  getEditionImagePath,
+} = require('./edition-utils');
 
 const router = express.Router();
-
-async function resolveEditionFilename(req, edition) {
-  if (!edition) {
-    return null;
-  }
-
-  const cleaned = path.basename(edition);
-  const rawEdition = cleaned.endsWith('.json') ? cleaned : `${cleaned}.json`;
-
-  const files = await req.editionsCache.getAll();
-
-  const exactMatch = files.find(file => file === rawEdition);
-  if (exactMatch) {
-    return exactMatch;
-  }
-
-  const candidateByBase = files.find(
-    file => path.basename(file, '.json') === cleaned
-  );
-  if (candidateByBase) {
-    return candidateByBase;
-  }
-
-  const candidateByLower = files.find(
-    file => path.basename(file, '.json').toLowerCase() === cleaned.toLowerCase()
-  );
-  if (candidateByLower) {
-    return candidateByLower;
-  }
-
-  return null;
-}
 
 router.get('/', async (req, res) => {
   const doc = documentEndpoint({
     method: 'GET',
     path: '/edition/',
     description:
-      'Explains how to create a new card edition file inside the data store.',
+      'Explains how to create a new card edition data inside the edition store.',
   });
   const message = createMessage({
     docs: doc,
     message: 'Edition helper endpoint is ready.',
     notes:
-      'Provide either `edition` or `edition_file` plus optional metadata when creating a new file.',
+      'Provide either `edition` or `edition_id` plus optional metadata when creating a new edition.',
   });
   res.json(message);
 });
@@ -61,25 +35,35 @@ router.get('/all', async (req, res) => {
     method: 'GET',
     path: '/edition/all',
     description:
-      'List every edition file along with metadata that is currently cached in memory.',
+      'List every edition edition_id along with metadata that is currently cached in memory.',
   });
 
-  const files = await req.editionsCache.getAll();
+  const data = await req.editionsCache.getAll();
 
   const editions = await Promise.all(
-    files.map(async filename => {
-      const fileData = (await req.editionsCache.get(filename)) || {};
-      const editionIdentifier =
-        fileData.edition || path.basename(filename, '.json');
+    data.map(async edition_id => {
+      console.log('Lade Edition:', edition_id);
+      const editionData = (await req.editionsCache.get(edition_id)) || {};
+      const editionIdentifier = editionData.edition_id;
       const cards = await req.cardsCache.getByEdition(editionIdentifier);
 
+      const imageHref = `${getBaseUrl(req)}/edition/image/${edition_id}`;
+      const imagePath = getEditionImagePath(edition_id);
+
+      const image = {
+        href: imageHref,
+        exists: fs.existsSync(imagePath),
+        filename: getEditionImageFilename(edition_id),
+      };
+
       return {
-        edition: editionIdentifier,
-        edition_name: fileData.edition_name || editionIdentifier,
-        language_short: fileData.language_short || '',
-        language_long: fileData.language_long || '',
-        identifier: fileData.identifier || '',
-        file: filename,
+        edition_id: editionData.edition_id,
+        edition_name: editionData.edition_name || editionIdentifier,
+        language_short: editionData.language_short || '',
+        language_long: editionData.language_long || '',
+        identifier: editionData.identifier || '',
+        spotify_playlist: editionData.spotify_playlist || '',
+        image: image,
         cardCount: Array.isArray(cards) ? cards.length : 0,
       };
     })
@@ -96,12 +80,12 @@ router.get('/all', async (req, res) => {
 
 router.post('/', async (req, res) => {
   const {
-    edition,
-    edition_file,
+    edition_id,
     edition_name,
     language_short,
     language_long,
     identifier,
+    spotify_playlist,
     cards,
   } = req.body;
 
@@ -109,169 +93,168 @@ router.post('/', async (req, res) => {
     method: 'POST',
     path: '/edition',
     description:
-      'Creates a new edition JSON file with the required metadata and an empty card list.',
+      'Creates a new edition JSON edition_id with the required metadata and an empty card list.',
   });
 
-  if (!edition && !edition_file) {
+  if (!edition_name && !edition_id) {
     const errorMessage = createError({
       docs: doc,
       error:
-        'Edition identifier (`edition`) or target filename (`edition_file`) is required.',
+        'Edition identifier (`edition`) or target edition_id (`edition_id`) is required.',
     });
     return res.status(400).json(errorMessage);
   }
 
-  const normalizedFilename = edition_file
-    ? path.basename(edition_file)
-    : `hitster-${edition}.json`;
-
-  const existing = await req.editionsCache.get(normalizedFilename);
+  const existing = await req.editionsCache.get(edition_id);
   if (existing) {
     const errorMessage = createError({
       docs: doc,
-      error: 'Edition file already exists.',
+      error: 'Edition edition_id already exists.',
     });
     return res.status(409).json(errorMessage);
   }
 
-  const editionIdentifier =
-    edition ||
-    path.basename(normalizedFilename, path.extname(normalizedFilename));
-
   const payload = {
-    edition: editionIdentifier,
-    edition_name: edition_name || editionIdentifier,
+    edition_id: edition_id,
+    edition_name: edition_name,
     language_short: language_short || 'de',
     language_long: language_long || 'Deutsch',
     identifier: identifier || '',
+    spotify_playlist: spotify_playlist || '',
     cards: Array.isArray(cards) ? cards : [],
   };
 
-  await req.editionsCache.write(normalizedFilename, payload);
-
+  await req.editionsCache.write(edition_id, payload);
   const message = createMessage({
     docs: doc,
-    message: 'New edition file created.',
-    data: { file: normalizedFilename, edition: payload.edition },
+    message: 'New edition edition_id created.',
+    data: { edition_id: edition_id, edition: payload.edition },
   });
 
   res.status(201).json(message);
 });
 
-router.get('/:edition', async (req, res) => {
+router.get('/:edition_id', async (req, res) => {
   const doc = documentEndpoint({
     method: 'GET',
-    path: '/edition/:edition',
-    description: 'Retrieve a specific edition file by its identifier.',
+    path: '/edition/:edition_id',
+    description: 'Retrieve a specific edition edition_id by its identifier.',
   });
 
-  const filename = await resolveEditionFilename(req, req.params.edition);
+  const edition_id = await resolveEdition(req, req.params.edition_id);
 
-  if (!filename) {
+  if (!edition_id) {
     const errorMessage = createError({
       docs: doc,
-      error: 'Edition file not found.',
+      error: 'Edition edition_id not found.',
     });
     return res.status(404).json(errorMessage);
   }
 
-  const file = await req.editionsCache.get(filename);
-  if (!file) {
+  const edition = await req.editionsCache.get(edition_id);
+  if (!edition) {
     const errorMessage = createError({
       docs: doc,
-      error: 'Edition file could not be loaded.',
+      error: 'Edition edition_id could not be loaded.',
     });
     return res.status(404).json(errorMessage);
   }
+
+  const imageHref = `${getBaseUrl(req)}/edition/image/${edition_id}`;
+  const imagePath = getEditionImagePath(edition_id);
+
+  const image = {
+    href: imageHref,
+    exists: fs.existsSync(imagePath),
+    filename: getEditionImageFilename(edition_id),
+  };
 
   const message = createMessage({
     docs: doc,
-    message: `Edition ${req.params.edition} loaded.`,
-    data: { file },
+    message: `Edition ${req.params.edition_id} loaded.`,
+    data: { edition_id: edition_id, edition, image },
   });
   res.json(message);
 });
 
-router.put('/:edition', async (req, res) => {
-  const filename = await resolveEditionFilename(req, req.params.edition);
+router.put('/:edition_id', async (req, res) => {
+  const edition_id = await resolveEdition(req, req.params.edition_id);
 
   const doc = documentEndpoint({
     method: 'PUT',
-    path: '/edition/:edition',
-    description: 'Update a specific edition file by its identifier.',
+    path: '/edition/:edition_id',
+    description: 'Update a specific edition edition_id by its identifier.',
   });
 
-  if (!filename) {
+  if (!edition_id) {
     const errorMessage = createError({
       docs: doc,
-      error: 'Edition file not found.',
+      error: 'Edition edition_id not found.',
     });
     return res.status(404).json(errorMessage);
   }
 
-  const existing = await req.editionsCache.get(filename);
-  if (!existing) {
+  const edition = await req.editionsCache.get(edition_id);
+  if (!edition) {
     const errorMessage = createError({
       docs: doc,
-      error: 'Edition file could not be loaded.',
+      error: 'Edition edition_id could not be loaded.',
     });
     return res.status(404).json(errorMessage);
   }
 
   const updated = {
-    ...existing,
+    ...edition,
     ...req.body,
   };
 
-  await req.editionsCache.write(filename, updated);
-  const saved = await req.editionsCache.get(filename);
+  await req.editionsCache.write(edition_id, updated);
+  const saved = await req.editionsCache.get(edition_id);
 
   const message = createMessage({
     docs: doc,
-    message: `Edition ${req.params.edition} updated.`,
-    data: { file: saved },
+    message: `Edition ${req.params.edition_id} updated.`,
+    data: { edition_id: edition_id, edition: saved },
   });
 
   res.json(message);
 });
 
-router.delete('/:edition', async (req, res) => {
-  const filename = await resolveEditionFilename(req, req.params.edition);
+router.delete('/:edition_id', async (req, res) => {
+  const edition_id = await resolveEdition(req, req.params.edition_id);
 
   const doc = documentEndpoint({
     method: 'DELETE',
-    path: '/edition/:edition',
-    description: 'Delete a specific edition file by its identifier.',
+    path: '/edition/:edition_id',
+    description: 'Delete a specific edition edition_id by its identifier.',
   });
 
-  if (!filename) {
+  if (!edition_id) {
     const errorMessage = createError({
       docs: doc,
-      error: 'Edition file not found.',
+      error: 'Edition edition_id not found.',
     });
     return res.status(404).json(errorMessage);
   }
 
-  const editionId = path.basename(filename, '.json');
-
   try {
-    await req.editionsCache.delete(filename);
+    await req.editionsCache.delete(edition_id);
     if (req.cardsCache?.deleteMany) {
-      await req.cardsCache.deleteMany(editionId);
+      await req.cardsCache.deleteMany(edition_id);
     }
   } catch (error) {
     console.error('Edition delete failed:', error.message);
     const errorMessage = createError({
       docs: doc,
-      error: 'Edition file could not be deleted.',
+      error: 'Edition edition_id could not be deleted.',
     });
     return res.status(500).json(errorMessage);
   }
 
   const message = createMessage({
     docs: doc,
-    message: `Edition ${req.params.edition} deleted.`,
-    data: { edition: req.params.edition },
+    message: `Edition ${req.params.edition_id} deleted.`,
+    data: { edition_id: edition_id, edition: 'deleted' },
   });
   res.json(message);
 });

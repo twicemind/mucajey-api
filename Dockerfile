@@ -24,8 +24,11 @@ ENV NODE_ENV=production \
 RUN addgroup -S app && adduser -S app -G app
 
 COPY --from=dependencies /app/node_modules ./node_modules
-COPY src/server/ .
+COPY src ./src
 COPY --from=openapi /app/docs/openapi/dist ./openapi
+COPY --from=openapi /app/docs/openapi/dist/openapi.yaml ./src/server/openapi/openapi.yaml
+COPY --from=dependencies /app/package*.json ./
+COPY data/images/ ./images/
 
 EXPOSE 3000
 

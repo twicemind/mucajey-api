@@ -1,210 +1,214 @@
-const fs = require('fs');
-const fsp = require('fs/promises');
-const path = require('path');
-const { DATA_DIR } = require('../../server/config');
-
-const cache = new Map();
+const cache = new Map(); // key: edition_id, value: edition document
 let aggregatedCards = [];
-let watcher;
-let reloadTimer;
 
-const JSON_EXTENSION = '.json';
-const RELOAD_DELAY_MS = 250;
-
+/**
+ * Deep copy for safe external reads.
+ */
 function deepCopy(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
-function sanitizeFilename(filename) {
-  if (!filename) {
-    throw new Error('Dateiname ist erforderlich');
+function requireString(value, msg) {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(msg);
   }
-  return path.basename(filename);
+  return value.trim();
 }
 
-async function ensureDataDirectory() {
-  await fsp.mkdir(DATA_DIR, { recursive: true });
-}
-
-async function loadJsonFileIntoCache(filename) {
-  const sanitized = sanitizeFilename(filename);
-  if (!sanitized.toLowerCase().endsWith(JSON_EXTENSION)) {
-    return;
-  }
-
-  const filePath = path.join(DATA_DIR, sanitized);
-  const content = await fsp.readFile(filePath, 'utf-8');
-  const parsed = JSON.parse(content);
-  cache.set(sanitized, parsed);
-  rebuildAggregatedCards();
-  return parsed;
-}
-
-async function scanDataDirectory() {
-  await ensureDataDirectory();
-  const entries = await fsp.readdir(DATA_DIR);
-  const jsonFiles = entries.filter(file =>
-    file.toLowerCase().endsWith(JSON_EXTENSION)
+/**
+ * Normalize an edition document.
+ * Ensures edition_id exists, cards is array, and edition_name fallback.
+ */
+function normalizeEdition(input) {
+  const doc = input && typeof input === 'object' ? input : {};
+  const edition_id = requireString(
+    doc.edition_id || doc.edition,
+    'edition_id ist erforderlich'
   );
-  const seenFiles = new Set();
 
-  for (const file of jsonFiles) {
-    seenFiles.add(file);
-    try {
-      await loadJsonFileIntoCache(file);
-    } catch (error) {
-      console.error(`Fehler beim Parsen von '${file}':`, error.message);
-      cache.delete(file);
-      rebuildAggregatedCards();
-    }
-  }
+  const cards = Array.isArray(doc.cards) ? doc.cards : [];
+  const edition_name =
+    typeof doc.edition_name === 'string' ? doc.edition_name : '';
 
-  for (const cachedFile of [...cache.keys()]) {
-    if (!seenFiles.has(cachedFile)) {
-      cache.delete(cachedFile);
-    }
-  }
-  rebuildAggregatedCards();
+  return {
+    ...doc,
+    edition_id,
+    // keep `edition` as optional alias for legacy consumers (edition == edition_id)
+    edition: edition_id,
+    edition_name: edition_name || edition_id,
+    cards,
+  };
 }
 
-function scheduleDirectoryReload() {
-  if (reloadTimer) {
-    clearTimeout(reloadTimer);
-  }
-  reloadTimer = setTimeout(() => {
-    reloadTimer = null;
-    scanDataDirectory().catch(error => {
-      console.error(
-        'Fehler beim Nachladen des Daten-Verzeichnisses:',
-        error.message
-      );
-    });
-  }, RELOAD_DELAY_MS);
-}
-
-function startDirectoryWatcher() {
-  if (watcher) {
-    return;
-  }
-
-  try {
-    watcher = fs.watch(DATA_DIR, (eventType, filename) => {
-      if (!filename || !filename.toLowerCase().endsWith(JSON_EXTENSION)) {
-        return;
-      }
-      scheduleDirectoryReload();
-    });
-
-    watcher.on('error', error => {
-      console.error('Dateiüberwachung fehlgeschlagen:', error.message);
-      watcher.close();
-      watcher = null;
-      setTimeout(startDirectoryWatcher, RELOAD_DELAY_MS);
-    });
-  } catch (error) {
-    console.error('Konnte Datenverzeichnis nicht überwachen:', error.message);
-  }
-}
-
-async function initializeDataCache() {
-  await ensureDataDirectory();
-  await scanDataDirectory();
-  startDirectoryWatcher();
-}
-
-function listCachedFiles() {
-  return Array.from(cache.keys());
-}
-
-function getCachedFile(filename) {
-  const sanitized = sanitizeFilename(filename);
-  const snapshot = cache.get(sanitized);
-  return snapshot ? deepCopy(snapshot) : null;
-}
-
-async function writeCacheFile(filename, payload) {
-  const sanitized = sanitizeFilename(filename);
-  const target = sanitized.toLowerCase().endsWith(JSON_EXTENSION)
-    ? sanitized
-    : `${sanitized}${JSON_EXTENSION}`;
-
-  await ensureDataDirectory();
-  const filePath = path.join(DATA_DIR, target);
-  const serialized = JSON.stringify(payload, null, 2) + '\n';
-  await fsp.writeFile(filePath, serialized, 'utf-8');
-
-  cache.set(target, deepCopy(payload));
-  rebuildAggregatedCards();
-  return cache.get(target);
-}
-
-async function deleteCacheFile(filename) {
-  const sanitized = sanitizeFilename(filename);
-  const target = sanitized.toLowerCase().endsWith(JSON_EXTENSION)
-    ? sanitized
-    : `${sanitized}${JSON_EXTENSION}`;
-
-  const filePath = path.join(DATA_DIR, target);
-  try {
-    await fsp.unlink(filePath);
-  } catch (error) {
-    if (error.code !== 'ENOENT') {
-      throw error;
-    }
-  }
-
-  cache.delete(target);
-  rebuildAggregatedCards();
-}
-
-async function refreshDataCache() {
-  await scanDataDirectory();
+/**
+ * Canonicalize cards for aggregated list:
+ * - enforce edition_id
+ * - set edition alias = edition_id
+ */
+function normalizeCard(card, edition_id, edition_name) {
+  const c = card && typeof card === 'object' ? card : {};
+  return {
+    ...c,
+    edition_id,
+    edition: edition_id,
+    edition_name,
+  };
 }
 
 function rebuildAggregatedCards() {
   const combined = [];
-  for (const [filename, data] of cache.entries()) {
-    if (!data || !Array.isArray(data.cards)) {
-      continue;
-    }
 
-    const editionName = data.edition || path.basename(filename, JSON_EXTENSION);
-    const editionIdentifier = path.basename(filename, JSON_EXTENSION);
+  for (const editionDoc of cache.values()) {
+    const { edition_id, edition_name, cards } = editionDoc;
 
-    for (const card of data.cards) {
-      combined.push({
-        edition_file: filename,
-        edition_name: editionName,
-        edition: editionIdentifier,
-        ...card,
-      });
+    for (const card of cards) {
+      combined.push(normalizeCard(card, edition_id, edition_name));
     }
   }
+
   aggregatedCards = combined;
+}
+
+/**
+ * Public API
+ */
+
+function listEditions() {
+  return Array.from(cache.keys());
+}
+
+function getEdition(edition_id) {
+  const id = requireString(edition_id, 'edition_id ist erforderlich');
+  const doc = cache.get(id);
+  return doc ? deepCopy(doc) : null;
 }
 
 function listAllCards() {
   return deepCopy(aggregatedCards);
 }
 
-function dataCacheMiddleware(req, res, next) {
+function listCardsByEdition(edition_id) {
+  const id = requireString(edition_id, 'edition_id ist erforderlich');
+  return deepCopy(aggregatedCards.filter(c => c.edition_id === id));
+}
+
+async function upsertEdition(edition_id, payload) {
+  const id = requireString(edition_id, 'edition_id ist erforderlich');
+  const normalized = normalizeEdition({ ...(payload || {}), edition_id: id });
+  cache.set(id, normalized);
+  rebuildAggregatedCards();
+  return deepCopy(normalized);
+}
+
+async function deleteEdition(edition_id) {
+  const id = requireString(edition_id, 'edition_id ist erforderlich');
+  cache.delete(id);
+  rebuildAggregatedCards();
+}
+
+async function replaceCardsForEdition(edition_id, cards) {
+  const id = requireString(edition_id, 'edition_id ist erforderlich');
+  const editionDoc = cache.get(id);
+
+  if (!editionDoc) {
+    // Option: create edition implicitly; adjust if you prefer to throw
+    cache.set(
+      id,
+      normalizeEdition({ edition_id: id, edition_name: id, cards: [] })
+    );
+  }
+
+  const doc = cache.get(id);
+  doc.cards = Array.isArray(cards) ? deepCopy(cards) : [];
+  cache.set(id, doc);
+
+  rebuildAggregatedCards();
+  return listCardsByEdition(id);
+}
+
+async function addCardToEdition(edition_id, card) {
+  const id = requireString(edition_id, 'edition_id ist erforderlich');
+  const editionDoc =
+    cache.get(id) ||
+    normalizeEdition({ edition_id: id, edition_name: id, cards: [] });
+
+  editionDoc.cards = Array.isArray(editionDoc.cards) ? editionDoc.cards : [];
+  editionDoc.cards.push(deepCopy(card || {}));
+  cache.set(id, editionDoc);
+
+  rebuildAggregatedCards();
+  return true;
+}
+
+async function updateCardInEdition(edition_id, cardId, patch) {
+  const id = requireString(edition_id, 'edition_id ist erforderlich');
+  const cid = requireString(cardId, 'card id ist erforderlich');
+
+  const editionDoc = cache.get(id);
+  if (!editionDoc || !Array.isArray(editionDoc.cards)) return null;
+
+  const idx = editionDoc.cards.findIndex(c => String(c.id) === cid);
+  if (idx < 0) return null;
+
+  editionDoc.cards[idx] = { ...editionDoc.cards[idx], ...(patch || {}) };
+  cache.set(id, editionDoc);
+
+  rebuildAggregatedCards();
+  return deepCopy(editionDoc.cards[idx]);
+}
+
+async function deleteCardFromEdition(edition_id, cardId) {
+  const id = requireString(edition_id, 'edition_id ist erforderlich');
+  const cid = requireString(cardId, 'card id ist erforderlich');
+
+  const editionDoc = cache.get(id);
+  if (!editionDoc || !Array.isArray(editionDoc.cards)) return;
+
+  editionDoc.cards = editionDoc.cards.filter(c => String(c.id) !== cid);
+  cache.set(id, editionDoc);
+
+  rebuildAggregatedCards();
+}
+
+/**
+ * Express middleware
+ */
+function dataCacheMiddleware(req, _res, next) {
   req.dataCache = {
-    listFiles: () => listCachedFiles(),
-    readFile: filename => getCachedFile(filename),
-    writeFile: (filename, data) => writeCacheFile(filename, data),
-    deleteFile: filename => deleteCacheFile(filename),
-    refresh: () => refreshDataCache(),
+    // editions
+    listEditions: () => listEditions(),
+    getEdition: edition_id => getEdition(edition_id),
+    upsertEdition: (edition_id, data) => upsertEdition(edition_id, data),
+    deleteEdition: edition_id => deleteEdition(edition_id),
+
+    // cards
     listAllCards: () => listAllCards(),
+    listCardsByEdition: edition_id => listCardsByEdition(edition_id),
+    replaceCardsForEdition: (edition_id, cards) =>
+      replaceCardsForEdition(edition_id, cards),
+    addCardToEdition: (edition_id, card) => addCardToEdition(edition_id, card),
+    updateCardInEdition: (edition_id, cardId, patch) =>
+      updateCardInEdition(edition_id, cardId, patch),
+    deleteCardFromEdition: (edition_id, cardId) =>
+      deleteCardFromEdition(edition_id, cardId),
   };
+
   next();
 }
 
 module.exports = {
-  initializeDataCache,
+  // middleware
   dataCacheMiddleware,
-  listCachedFiles,
-  getCachedFile,
-  writeCacheFile,
-  refreshDataCache,
+
+  // direct helpers (useful for tests)
+  listEditions,
+  getEdition,
+  upsertEdition,
+  deleteEdition,
+  replaceCardsForEdition,
+  addCardToEdition,
+  updateCardInEdition,
+  deleteCardFromEdition,
   listAllCards,
+  listCardsByEdition,
 };

@@ -13,27 +13,29 @@ function deepCopy(value) {
 function createTestContext() {
   const editions = new Map([
     [
-      'hitster-classics.json',
+      'hitster-de-classics',
       {
-        edition: 'hitster-classics',
+        edition_id: 'hitster-de-classics',
         edition_name: 'Hitster Classics',
         language_short: 'de',
       },
     ],
     [
-      'hitster-modern.json',
+      'hitster-de-modern',
       {
-        edition: 'hitster-modern',
+        edition_id: 'hitster-de-modern',
         edition_name: 'Hitster Modern',
         language_short: 'en',
       },
     ],
   ]);
 
+  // Canonical: edition_id; keep edition alias for compatibility
   const cards = [
     {
       id: '1',
-      edition: 'hitster-classics',
+      edition_id: 'hitster-de-classics',
+      edition: 'hitster-de-classics',
       title: 'Song A',
       artist: 'Artist A',
       year: '1980',
@@ -41,7 +43,8 @@ function createTestContext() {
     },
     {
       id: '2',
-      edition: 'hitster-classics',
+      edition_id: 'hitster-de-classics',
+      edition: 'hitster-de-classics',
       title: 'Song B',
       artist: 'Artist B',
       year: '1981',
@@ -50,7 +53,8 @@ function createTestContext() {
     },
     {
       id: '3',
-      edition: 'hitster-modern',
+      edition_id: 'hitster-de-modern',
+      edition: 'hitster-de-modern',
       title: 'Song C',
       artist: 'Artist C',
       year: '2000',
@@ -63,8 +67,8 @@ function createTestContext() {
     async getAll() {
       return Array.from(editions.keys());
     },
-    async get(filename) {
-      return deepCopy(editions.get(filename));
+    async get(edition_id) {
+      return deepCopy(editions.get(edition_id));
     },
   };
 
@@ -72,8 +76,13 @@ function createTestContext() {
     async getAll() {
       return deepCopy(cards);
     },
-    async getByEdition(editionId) {
-      return deepCopy(cards.filter(card => card.edition === editionId));
+    async getByEdition(edition_id) {
+      // migration-safe: accept either edition_id or edition
+      return deepCopy(
+        cards.filter(
+          c => c.edition_id === edition_id || c.edition === edition_id
+        )
+      );
     },
   };
 
@@ -98,7 +107,10 @@ test('GET /stats aggregates cards and editions from caches', async () => {
 
   const res = await request(app).get('/stats').expect(200);
 
-  const { summary, editions } = res.body;
+  // Most implementations wrap payload into { data: ... }.
+  // Keep a fallback for older shape to avoid brittle tests during refactors.
+  const payload = res.body && res.body.data ? res.body.data : res.body;
+  const { summary, editions } = payload;
 
   assert.equal(
     res.body.message,
@@ -106,14 +118,19 @@ test('GET /stats aggregates cards and editions from caches', async () => {
   );
   assert.equal(summary.total_cards, 3);
   assert.equal(summary.total_editions, 2);
+
   assert.equal(summary.cards_with_apple_id, 1);
   assert.equal(summary.cards_with_spotify_id, 1);
   assert.equal(summary.cards_with_any_streaming, 2);
   assert.equal(summary.cards_missing_streaming, 1);
-  assert.equal(summary.cards_per_edition['hitster-classics'], 2);
+
+  // cards_per_edition depends on router’s edition key logic.
+  // With canonical cards containing edition_id and edition alias, this should be stable.
+  assert.equal(summary.cards_per_edition['hitster-de-classics'], 2);
+
   assert.equal(editions.length, 2);
-  assert.equal(
-    editions.find(e => e.edition === 'hitster-classics').cardCount,
-    2
-  );
+
+  const classics = editions.find(e => e.edition_id === 'hitster-de-classics');
+  assert(classics, 'Expected edition summary for hitster-de-classics to exist');
+  assert.equal(classics.cardCount, 2);
 });

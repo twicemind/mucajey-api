@@ -33,6 +33,7 @@ const { localStrategy } = require('./middleware/passport/strategy.local');
 const healthRoutes = require('./routes/health');
 const cardRoutes = require('./routes/v2/card');
 const editionRoutes = require('./routes/v2/edition');
+const editionImageRoutes = require('./routes/v2/edition-image');
 const statsRoutes = require('./routes/v2/stats');
 const registerRoutes = require('./routes/v2/register');
 const authRoutes = require('./routes/v2/auth');
@@ -93,6 +94,7 @@ app.use('/health', healthRoutes);
 
 // Routes (mit Auth)
 app.use('/card', authenticateApiKey, cardRoutes);
+app.use('/edition/image', editionImageRoutes);
 app.use('/edition', authenticateApiKey, editionRoutes);
 app.use('/stats', authenticateApiKey, statsRoutes);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));

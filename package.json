@@ -1,6 +1,6 @@
 {
   "name": "mucajey-api",
-  "version": "2.0.4",
+  "version": "2.0.7",
   "description": "Node.js api rest backend server for mucajey",
   "main": "src/server/server.js",
   "scripts": {
@@ -44,11 +44,12 @@
     "yamljs": "^0.3.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.0",
-    "eslint": "^9.39.1",
+    "@eslint/js": "^9.39.2",
+    "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.2.1",
-    "globals": "^16.5.0",
+    "globals": "^17.0.0",
+    "i": "^0.3.7",
     "jest": "^30.2.0",
     "nodemon": "^3.0.1",
     "prettier": "^3.3.3",
