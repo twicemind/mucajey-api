@@ -31,5 +31,6 @@ Thumbs.db
 
 generate_token.js
 AuthKey.p8
-data/*
-data/
+data/api/
+data/cards/
+data/user/
