@@ -1,0 +1,42 @@
+paths:
+  /auth/me:
+    get:
+      summary: 'Returns the current authenticated user.'
+      description: 'Returns the current authenticated user.'
+      tags: [Auth]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}, '401': {description: Unauthorized}}
+  /auth/users:
+    get:
+      summary: 'Lists every user allowed to access the admin area.'
+      description: 'Lists every user allowed to access the admin area.'
+      tags: [Auth]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}}
+    post:
+      summary: 'Creates a new user account for the admin area.'
+      description: 'Creates a new user account for the admin area.'
+      tags: [Auth]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}, '201': {description: Created}, '400': {description: 'Bad Request'}, '409': {description: Conflict}}
+  /auth/users/password:
+    post:
+      summary: 'Updates the authenticated user''s password.'
+      description: 'Updates the authenticated user''s password.'
+      tags: [Auth]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}, '400': {description: 'Bad Request'}, '401': {description: Unauthorized}, '404': {description: 'Not Found'}}
+  '/auth/users/{username}/password':
+    post:
+      summary: 'Allows admins to reset another user''s password.'
+      description: 'Allows admins to reset another user''s password.'
+      tags: [Auth]
+      parameters: [{name: username, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}, '400': {description: 'Bad Request'}, '404': {description: 'Not Found'}}
+  '/auth/users/{username}':
+    delete:
+      summary: 'Removes a user from the admin list.'
+      description: 'Removes a user from the admin list.'
+      tags: [Auth]
+      parameters: [{name: username, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}, '400': {description: 'Bad Request'}, '404': {description: 'Not Found'}}

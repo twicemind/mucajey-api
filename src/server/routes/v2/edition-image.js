@@ -1,20 +1,17 @@
 const express = require('express');
 const fs = require('fs');
 const mime = require('mime-types');
-const {
-  documentation: documentEndpoint,
-  error: createError,
-} = require('../../utils/result');
+const result = require('../../utils/result');
 const {
   resolveEdition,
   getEditionImageFilename,
   getEditionImagePath,
-} = require('./edition-utils');
+} = require('../../utils/edition-utils');
 
 const router = express.Router();
 
 router.get('/:edition_id', async (req, res) => {
-  const doc = documentEndpoint({
+  const doc = result.documentation({
     method: 'GET',
     path: '/edition/image/:edition_id',
     description: 'Delivers the edition image as binary (png/jpg/...).',
@@ -22,7 +19,7 @@ router.get('/:edition_id', async (req, res) => {
 
   const edition_id = await resolveEdition(req, req.params.edition_id);
   if (!edition_id) {
-    const errorMessage = createError({
+    const errorMessage = result.error({
       docs: doc,
       error: 'Edition edition_id not found.',
     });
@@ -31,7 +28,7 @@ router.get('/:edition_id', async (req, res) => {
 
   const filePath = getEditionImagePath(edition_id);
   if (!fs.existsSync(filePath)) {
-    const errorMessage = createError({
+    const errorMessage = result.error({
       docs: doc,
       error: `Edition image not found for ${edition_id}. Expected ${getEditionImageFilename(edition_id)} in /images.`,
     });

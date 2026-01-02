@@ -24,6 +24,20 @@ paths:
       tags: [Register]
       parameters: []
       responses: {'200': {description: 'Successful response'}, '201': {description: Created}, '400': {description: 'Bad Request'}, '500': {description: 'Internal Server Error'}}
+  /login:
+    post:
+      summary: 'Authenticates a user with their username and password.'
+      description: 'Authenticates a user with their username and password.'
+      tags: [Login]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}}
+  /logout:
+    post:
+      summary: 'Invalidates the current authentication session.'
+      description: 'Invalidates the current authentication session.'
+      tags: [Login]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}}
   /health:
     get:
       summary: 'Health check endpoint to verify if the API is running.'
@@ -31,6 +45,53 @@ paths:
       tags: [Health]
       parameters: []
       responses: {'200': {description: 'Successful response'}}
+  /edition/:
+    get:
+      summary: 'Explains how to create a new card edition data inside the edition store.'
+      description: 'Explains how to create a new card edition data inside the edition store.'
+      tags: [Edition]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}}
+  /edition/all:
+    get:
+      summary: 'List every edition edition_id along with metadata that is currently cached in memory.'
+      description: 'List every edition edition_id along with metadata that is currently cached in memory.'
+      tags: [Edition]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}}
+  /edition:
+    post:
+      summary: 'Creates a new edition JSON edition_id with the required metadata and an empty card list.'
+      description: 'Creates a new edition JSON edition_id with the required metadata and an empty card list.'
+      tags: [Edition]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}, '201': {description: Created}, '400': {description: 'Bad Request'}, '409': {description: Conflict}}
+  '/edition/{edition_id}':
+    get:
+      summary: 'Retrieve a specific edition edition_id by its identifier.'
+      description: 'Retrieve a specific edition edition_id by its identifier.'
+      tags: [Edition]
+      parameters: [{name: edition_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}, '404': {description: 'Not Found'}}
+    put:
+      summary: 'Update a specific edition edition_id by its identifier.'
+      description: 'Update a specific edition edition_id by its identifier.'
+      tags: [Edition]
+      parameters: [{name: edition_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}, '404': {description: 'Not Found'}}
+    delete:
+      summary: 'Delete a specific edition edition_id by its identifier.'
+      description: 'Delete a specific edition edition_id by its identifier.'
+      tags: [Edition]
+      parameters: [{name: edition_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}, '404': {description: 'Not Found'}, '500': {description: 'Internal Server Error'}}
+  '/edition/image/{edition_id}':
+    get:
+      summary: 'Delivers the edition image as binary (png/jpg/...).'
+      description: 'Delivers the edition image as binary (png/jpg/...).'
+      tags: [Edition-image]
+      parameters: [{name: edition_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}, '404': {description: 'Not Found'}}
   /card/:
     get:
       summary: 'Learn how to interact with the card collection support endpoints. Includes authentication reminder.'
@@ -121,4 +182,45 @@ paths:
       tags: [Card]
       parameters: [{name: edition, in: path, required: true, schema: {type: string}}, {name: id, in: path, required: true, schema: {type: string}}]
       responses: {'200': {description: 'Successful response'}, '404': {description: 'Not Found'}}
+  /auth/me:
+    get:
+      summary: 'Returns the current authenticated user.'
+      description: 'Returns the current authenticated user.'
+      tags: [Auth]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}, '401': {description: Unauthorized}}
+  /auth/users:
+    get:
+      summary: 'Lists every user allowed to access the admin area.'
+      description: 'Lists every user allowed to access the admin area.'
+      tags: [Auth]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}}
+    post:
+      summary: 'Creates a new user account for the admin area.'
+      description: 'Creates a new user account for the admin area.'
+      tags: [Auth]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}, '201': {description: Created}, '400': {description: 'Bad Request'}, '409': {description: Conflict}}
+  /auth/users/password:
+    post:
+      summary: 'Updates the authenticated user''s password.'
+      description: 'Updates the authenticated user''s password.'
+      tags: [Auth]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}, '400': {description: 'Bad Request'}, '401': {description: Unauthorized}, '404': {description: 'Not Found'}}
+  '/auth/users/{username}/password':
+    post:
+      summary: 'Allows admins to reset another user''s password.'
+      description: 'Allows admins to reset another user''s password.'
+      tags: [Auth]
+      parameters: [{name: username, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}, '400': {description: 'Bad Request'}, '404': {description: 'Not Found'}}
+  '/auth/users/{username}':
+    delete:
+      summary: 'Removes a user from the admin list.'
+      description: 'Removes a user from the admin list.'
+      tags: [Auth]
+      parameters: [{name: username, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}, '400': {description: 'Bad Request'}, '404': {description: 'Not Found'}}
 components: {}

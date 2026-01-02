@@ -1,0 +1,8 @@
+paths:
+  '/edition/image/{edition_id}':
+    get:
+      summary: 'Delivers the edition image as binary (png/jpg/...).'
+      description: 'Delivers the edition image as binary (png/jpg/...).'
+      tags: [Edition-image]
+      parameters: [{name: edition_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: 'Successful response'}, '404': {description: 'Not Found'}}

@@ -1,27 +1,23 @@
 const express = require('express');
 const fs = require('fs');
-const {
-  documentation: documentEndpoint,
-  message: createMessage,
-  error: createError,
-} = require('../../utils/result');
+const result = require('../../utils/result');
 const {
   resolveEdition,
   getBaseUrl,
   getEditionImageFilename,
   getEditionImagePath,
-} = require('./edition-utils');
+} = require('../../utils/edition-utils');
 
 const router = express.Router();
 
 router.get('/', async (req, res) => {
-  const doc = documentEndpoint({
+  const doc = result.documentation({
     method: 'GET',
     path: '/edition/',
     description:
       'Explains how to create a new card edition data inside the edition store.',
   });
-  const message = createMessage({
+  const message = result.message({
     docs: doc,
     message: 'Edition helper endpoint is ready.',
     notes:
@@ -31,7 +27,7 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/all', async (req, res) => {
-  const doc = documentEndpoint({
+  const doc = result.documentation({
     method: 'GET',
     path: '/edition/all',
     description:
@@ -69,7 +65,7 @@ router.get('/all', async (req, res) => {
     })
   );
 
-  const message = createMessage({
+  const message = result.message({
     docs: doc,
     message: 'Edition list retrieved from cache.',
     data: { editions },
@@ -89,7 +85,7 @@ router.post('/', async (req, res) => {
     cards,
   } = req.body;
 
-  const doc = documentEndpoint({
+  const doc = result.documentation({
     method: 'POST',
     path: '/edition',
     description:
@@ -97,7 +93,7 @@ router.post('/', async (req, res) => {
   });
 
   if (!edition_name && !edition_id) {
-    const errorMessage = createError({
+    const errorMessage = result.error({
       docs: doc,
       error:
         'Edition identifier (`edition`) or target edition_id (`edition_id`) is required.',
@@ -107,7 +103,7 @@ router.post('/', async (req, res) => {
 
   const existing = await req.editionsCache.get(edition_id);
   if (existing) {
-    const errorMessage = createError({
+    const errorMessage = result.error({
       docs: doc,
       error: 'Edition edition_id already exists.',
     });
@@ -125,7 +121,7 @@ router.post('/', async (req, res) => {
   };
 
   await req.editionsCache.write(edition_id, payload);
-  const message = createMessage({
+  const message = result.message({
     docs: doc,
     message: 'New edition edition_id created.',
     data: { edition_id: edition_id, edition: payload.edition },
@@ -135,7 +131,7 @@ router.post('/', async (req, res) => {
 });
 
 router.get('/:edition_id', async (req, res) => {
-  const doc = documentEndpoint({
+  const doc = result.documentation({
     method: 'GET',
     path: '/edition/:edition_id',
     description: 'Retrieve a specific edition edition_id by its identifier.',
@@ -144,7 +140,7 @@ router.get('/:edition_id', async (req, res) => {
   const edition_id = await resolveEdition(req, req.params.edition_id);
 
   if (!edition_id) {
-    const errorMessage = createError({
+    const errorMessage = result.error({
       docs: doc,
       error: 'Edition edition_id not found.',
     });
@@ -153,7 +149,7 @@ router.get('/:edition_id', async (req, res) => {
 
   const edition = await req.editionsCache.get(edition_id);
   if (!edition) {
-    const errorMessage = createError({
+    const errorMessage = result.error({
       docs: doc,
       error: 'Edition edition_id could not be loaded.',
     });
@@ -169,7 +165,7 @@ router.get('/:edition_id', async (req, res) => {
     filename: getEditionImageFilename(edition_id),
   };
 
-  const message = createMessage({
+  const message = result.message({
     docs: doc,
     message: `Edition ${req.params.edition_id} loaded.`,
     data: { edition_id: edition_id, edition, image },
@@ -180,14 +176,14 @@ router.get('/:edition_id', async (req, res) => {
 router.put('/:edition_id', async (req, res) => {
   const edition_id = await resolveEdition(req, req.params.edition_id);
 
-  const doc = documentEndpoint({
+  const doc = result.documentation({
     method: 'PUT',
     path: '/edition/:edition_id',
     description: 'Update a specific edition edition_id by its identifier.',
   });
 
   if (!edition_id) {
-    const errorMessage = createError({
+    const errorMessage = result.error({
       docs: doc,
       error: 'Edition edition_id not found.',
     });
@@ -196,7 +192,7 @@ router.put('/:edition_id', async (req, res) => {
 
   const edition = await req.editionsCache.get(edition_id);
   if (!edition) {
-    const errorMessage = createError({
+    const errorMessage = result.error({
       docs: doc,
       error: 'Edition edition_id could not be loaded.',
     });
@@ -211,7 +207,7 @@ router.put('/:edition_id', async (req, res) => {
   await req.editionsCache.write(edition_id, updated);
   const saved = await req.editionsCache.get(edition_id);
 
-  const message = createMessage({
+  const message = result.message({
     docs: doc,
     message: `Edition ${req.params.edition_id} updated.`,
     data: { edition_id: edition_id, edition: saved },
@@ -223,14 +219,14 @@ router.put('/:edition_id', async (req, res) => {
 router.delete('/:edition_id', async (req, res) => {
   const edition_id = await resolveEdition(req, req.params.edition_id);
 
-  const doc = documentEndpoint({
+  const doc = result.documentation({
     method: 'DELETE',
     path: '/edition/:edition_id',
     description: 'Delete a specific edition edition_id by its identifier.',
   });
 
   if (!edition_id) {
-    const errorMessage = createError({
+    const errorMessage = result.error({
       docs: doc,
       error: 'Edition edition_id not found.',
     });
@@ -244,14 +240,14 @@ router.delete('/:edition_id', async (req, res) => {
     }
   } catch (error) {
     console.error('Edition delete failed:', error.message);
-    const errorMessage = createError({
+    const errorMessage = result.error({
       docs: doc,
       error: 'Edition edition_id could not be deleted.',
     });
     return res.status(500).json(errorMessage);
   }
 
-  const message = createMessage({
+  const message = result.message({
     docs: doc,
     message: `Edition ${req.params.edition_id} deleted.`,
     data: { edition_id: edition_id, edition: 'deleted' },

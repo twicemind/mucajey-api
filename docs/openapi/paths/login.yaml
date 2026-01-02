@@ -1,0 +1,15 @@
+paths:
+  /login:
+    post:
+      summary: 'Authenticates a user with their username and password.'
+      description: 'Authenticates a user with their username and password.'
+      tags: [Login]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}}
+  /logout:
+    post:
+      summary: 'Invalidates the current authentication session.'
+      description: 'Invalidates the current authentication session.'
+      tags: [Login]
+      parameters: []
+      responses: {'200': {description: 'Successful response'}}
